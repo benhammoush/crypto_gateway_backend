@@ -1,0 +1,8 @@
+# Copy to .dev.vars, then configure locally. Never commit the populated file.
+# PAYMENTS_ENABLED stays false until a real Devnet recipient and provider key exist.
+PAYMENTS_ENABLED=false
+JUPITER_API_KEY=
+CHECKOUT_SECRET=
+# JSON array: id, apiKeyHash (SHA-256 hex), recipient (32-byte base58 public key).
+# Optional webhookUrl and webhookSecret (>=32 characters); URLs must use approved HTTPS hosts.
+MERCHANTS_JSON=[]

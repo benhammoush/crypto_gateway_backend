@@ -1,0 +1,240 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "crypto_gateway",
+    "version": "0.1.0",
+    "description": "Non-custodial USD-to-SOL Devnet payments. Merchant endpoints require server-side credentials; checkout endpoints require payment-scoped capabilities."
+  },
+  "paths": {
+    "/v1/payments": {
+      "post": {
+        "operationId": "createPayment",
+        "security": [{ "merchantBearer": [] }],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,128}$" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreatePayment" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Payment" },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/payments/{id}": {
+      "get": {
+        "operationId": "getPayment",
+        "security": [{ "merchantBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/PaymentId" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Payment" },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/checkout/{id}": {
+      "get": {
+        "operationId": "getCheckout",
+        "security": [{ "checkoutBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/PaymentId" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Payment" },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/checkout/{id}/transactions": {
+      "post": {
+        "operationId": "submitTransaction",
+        "security": [{ "checkoutBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/PaymentId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["signature"],
+                "properties": {
+                  "signature": {
+                    "type": "string",
+                    "pattern": "^[1-9A-HJ-NP-Za-km-z]{64,100}$",
+                    "description": "Must decode to exactly 64 bytes."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Payment" },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "merchantBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Backend-only merchant API credential."
+      },
+      "checkoutBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Payment-scoped checkout capability."
+      }
+    },
+    "parameters": {
+      "PaymentId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "pattern": "^[a-f0-9-]{36}$" }
+      }
+    },
+    "responses": {
+      "Payment": {
+        "description": "Authoritative payment state. Creation and merchant reads include checkoutUrl; checkout reads do not.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/PaymentEnvelope" }
+          }
+        }
+      },
+      "Error": {
+        "description": "400/401/403/404/409/413/415/422/429/500/503. Retry provider failures safely; never infer payment failure from transport errors.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "CreatePayment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["usdCents", "merchantReference"],
+        "properties": {
+          "usdCents": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+          "merchantReference": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+            "description": "Opaque reference, not customer PII."
+          }
+        }
+      },
+      "Payment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "merchantReference",
+          "usdCents",
+          "lamports",
+          "displaySol",
+          "network",
+          "asset",
+          "recipient",
+          "memo",
+          "rpcUrl",
+          "quote",
+          "createdAt",
+          "expiresAt",
+          "status",
+          "signature",
+          "settledAt",
+          "attempts"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "merchantReference": { "type": "string" },
+          "usdCents": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+          "lamports": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+          "displaySol": { "type": "string", "pattern": "^[0-9]+\\.[0-9]{9}$" },
+          "network": { "type": "string", "const": "solana-devnet" },
+          "asset": { "type": "string", "const": "SOL" },
+          "recipient": { "type": "string" },
+          "memo": { "type": "string" },
+          "rpcUrl": { "type": "string" },
+          "quote": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["usdPrice", "blockId"],
+            "properties": {
+              "usdPrice": { "type": "string" },
+              "blockId": { "type": "integer" }
+            }
+          },
+          "createdAt": { "type": "integer" },
+          "expiresAt": { "type": "integer" },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "verifying", "settled", "expired"]
+          },
+          "signature": { "type": ["string", "null"] },
+          "settledAt": { "type": ["integer", "null"] },
+          "checkoutUrl": { "type": "string" },
+          "attempts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["signature", "state", "reason"],
+              "properties": {
+                "signature": { "type": "string" },
+                "state": {
+                  "type": "string",
+                  "enum": ["pending", "rejected", "verified"]
+                },
+                "reason": { "type": ["string", "null"] }
+              }
+            }
+          }
+        }
+      },
+      "PaymentEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data", "meta"],
+        "properties": {
+          "data": { "$ref": "#/components/schemas/Payment" },
+          "meta": {
+            "type": "object",
+            "required": ["requestId"],
+            "properties": { "requestId": { "type": "string" } }
+          }
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message", "requestId"],
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "requestId": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

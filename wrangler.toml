@@ -1,0 +1,22 @@
+# LOCAL ONLY. No hosted bindings, credentials, or deployment workflow.
+name = "crypto-gateway-local"
+main = "src/index.ts"
+compatibility_date = "2026-10-04"
+compatibility_flags = ["global_fetch_strictly_public"]
+workers_dev = false
+
+[vars]
+APP_ENV = "local"
+PAYMENTS_ENABLED = "false"
+CHECKOUT_ORIGIN = "http://localhost:5173"
+SOLANA_RPC_URL = "https://api.devnet.solana.com"
+WEBHOOK_HOSTS = ""
+
+[[d1_databases]]
+binding = "DB"
+database_name = "crypto-gateway-local"
+database_id = "local-only"
+migrations_dir = "migrations"
+
+[triggers]
+crons = ["* * * * *"]
