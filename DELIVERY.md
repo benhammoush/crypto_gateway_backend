@@ -2,7 +2,7 @@
 
 ## Targets
 
-Local → dev → production; no staging. Production remains Devnet-only. This repository currently supplies local configuration and quality CI, **not a hosted deployment workflow**. Provisioning, remote settings, merges and deployment require explicit authorization.
+Local → dev → production; no staging. Production remains Devnet-only. The existing CI now includes disabled-by-default hosted delivery jobs, not provisioning or hosted acceptance. Provisioning, remote settings, merges and deployment require explicit authorization.
 
 Each hosted target needs independent Worker, D1, merchant credentials, checkout secret, recipient wallets, webhook secrets, allowed checkout origin and scoped deployment credential. Keep runtime secrets in provider-managed storage. No implicit production fallback. Configure explicit managed target files outside source; never reuse the local binding for hosted work.
 
@@ -11,12 +11,57 @@ Each hosted target needs independent Worker, D1, merchant credentials, checkout 
 1. Configure protected main and strict required quality checks, administrator enforcement, no force push/deletion; maintainer diff review for solo maintenance.
 2. Configure dev/production native environments restricted to main. Production requires enforceable explicit approval with admin bypass disabled. If unsupported, keep production disabled pending an approved alternative.
 3. Verify provider isolation, scoped credentials and origin ownership. Disable Vercel Git auto-deploy; CI must own deployment. No hosted PR previews or cross-repository dispatch tokens.
-4. Add reviewed, manually gated deployment jobs in each owning repository. Serialize per target without cancelling active migration/deployment.
+4. Keep each environment's `DEPLOY_ENABLED` unset/false until readiness and separate enablement authorization. The owning CI checks the exact selected merged source, then uses the native target environment. Main pushes select dev; manual dev redeployment/production dispatch run from main with an exact `sha`. Serialize per target without cancelling active operations. Production requires a new dispatch and native approval; no dev-verification credential or custom release coordinator is used.
 5. Review runtime dependency advisories, rate limiting, webhook destination behavior, retention and backup controls. Provision monitoring/alerts separately.
 6. Probe RPC genesis and bounded dependencies; apply reviewed forward-compatible migrations before API code, then deploy the compatible frontend. Readiness remains configuration-only.
 7. Complete manual localhost acceptance and controlled live dev payment/failure/recovery acceptance. Fixtures and dry-run builds are insufficient.
 
 ## Compatible source selection
+
+### Shared manual-production setup
+
+Each GitHub environment has `CLOUDFLARE_ACCOUNT_ID`, `API_ORIGIN`, `D1_DATABASE_ID`,
+`OTHER_D1_DATABASE_ID`, `D1_SCHEMA_DIGEST` and `WORKER_CONFIG_JSON` variables, plus
+its own scoped `CLOUDFLARE_API_TOKEN` secret. Use password-manager labels such as
+`crypto-gateway-production-cloudflare-deploy`; labels are not GitHub secret names.
+Do not put runtime secrets or keyed RPC URLs in configuration variables or evidence.
+No extra GitHub PAT is required. Native production approval permits self-review and
+disables administrator bypass; verify protections using the owner's local login.
+
+`WORKER_CONFIG_JSON` is the operator-managed hosted configuration outside source,
+materialized only in the CI workspace as `wrangler.delivery.json`. It must specify
+`name: crypto-gateway-dev` or `crypto-gateway-production`, `main: src/index.ts`,
+`compatibility_date: 2026-10-04`, `compatibility_flags: [global_fetch_strictly_public]`,
+`workers_dev: true`, the target's isolated `DB` D1 binding (`database_name` equal to
+the Worker name, actual `database_id`, `migrations_dir: migrations`), and
+`triggers: {crons: ["* * * * *"]}`. Its only plain vars are the matching `APP_ENV`,
+explicit `PAYMENTS_ENABLED`, HTTPS `CHECKOUT_ORIGIN`, public
+`WEBHOOK_HOSTS` and optionally the public
+`SOLANA_RPC_URL: https://api.devnet.solana.com`. Omit that plain RPC variable when
+the provider-managed `SOLANA_RPC_URL` secret supplies the keyed Devnet endpoint;
+never declare the same binding as both plain configuration and a secret. Configure
+keyed RPC/provider/merchant/checkout/webhook secrets through the provider, not this file.
+The guard rejects local/shared bindings, unknown fields and mismatched schema
+readback. It never deploys the local `wrangler.toml`.
+
+Apply reviewed forward-compatible migrations separately to the exact target D1
+before code deployment. After readback, record the selected migration-set digest
+from `migrationDigest()` in `scripts/check-delivery.mjs` as `D1_SCHEMA_DIGEST`.
+This is an operator attestation, not a live database inspection or migration service.
+The workflow never applies remote migrations, resets data or reverses payments.
+The backend guard/config file must not be run locally with live credentials merely
+to test it; its pure regression fixtures do not access providers.
+
+Before native production approval, manually recheck both accepted source SHAs,
+versions, provider/configuration identities, schema state and acceptance/recovery
+evidence. Any intervening deployment/configuration change invalidates affected
+acceptance. A SHA input or green CI alone is not acceptance. Production holds no
+dev-verification credential and does not query dev. Initial Worker creation and
+first-deployment recovery acceptance remain operator checkpoints: retain eligible
+previous versions before enabling this workflow, and do not invent a predecessor.
+Deployment jobs retain provider version lists before/after mutation; export exact
+compatible identities to release records. Failure may mean partial mutation; inspect
+both providers before a new dispatch, never automatically retry or roll back.
 
 Each repository owns its CI/releases. Do not infer the counterpart from latest main. The frontend records an explicitly selected backend schema revision and hash. For promotion, manually record exact accepted backend/frontend SHAs, versions, provider deployment identities, migrations, configuration identity, CI evidence and previous compatible recovery identities. A local schema revision is not production evidence.
 

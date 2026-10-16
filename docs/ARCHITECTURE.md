@@ -12,7 +12,7 @@ No floating-point multiplication, browser pricing or silent repricing. Quote lif
 
 ## Transaction format
 
-Exactly two top-level instructions: native System Program transfer from the first signing payer, then SPL Memo text `crypto_gateway:<payment UUID>`. Checkout supplies the payer as the memo signer. No other instruction formats are accepted initially. Verification requires successful finalized execution, exact signature, recipient, lamports and recipient balance delta. Unsafe JSON numeric balances are rejected, not rounded.
+The final two top-level instructions must be the native System Program transfer from the first signing payer, then SPL Memo text `crypto_gateway:<payment UUID>`. Checkout builds these two instructions and supplies the payer as the memo signer. Wallets may prepend up to two Compute Budget Program instructions: at most one `SetComputeUnitLimit` (discriminator 2 + u32, exactly 5 bytes) and one `SetComputeUnitPrice` (discriminator 3 + u64, exactly 9 bytes), in either order, with no account references. Both values use the protocol's full unsigned integer range; the gateway does not calculate or authorize wallet fees. No duplicate types, other compute-budget variants, interleaving, suffixes or additional transfer/program instructions are accepted. Verification still requires successful finalized execution, exact signature, recipient, lamports and recipient balance delta. Unsafe JSON numeric balances are rejected, not rounded.
 
 Transaction execution time must be between request creation (second precision) and expiry. Finalization may arrive later. Candidates remain retryable for up to 24 hours after expiry; after that the customer needs manual support. This is not a claim that funds were returned or the transfer failed.
 
@@ -28,6 +28,8 @@ Transaction execution time must be between request creation (second precision) a
 - Webhook delivery is at-least-once with expiring leases, twelve attempts and capped exponential backoff. A crash after receiver acknowledgment may cause redelivery. Exhausted events require operator review/replay authorization.
 
 Frontend notifications are separate from durable state: Awaiting wallet approval → Transaction submitted → Verifying on-chain → Payment verified. Only server settlement permits the final notification.
+
+Wallet preparation uses a checkout-authenticated read-only RPC route, not the configured provider URL in the browser. Only Devnet genesis and finalized latest-blockhash calls are accepted for unexpired/unsettled payments. The gateway uses its operator-configured HTTPS upstream, limits checkout/global usage, rejects batches and extra parameters, bounds bodies and deadlines, and returns validated fields only. This does not proxy transaction submission or grant settlement authority. Phantom submits through its own network connection; authoritative verification remains independent.
 
 ## Threat model
 

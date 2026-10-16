@@ -19,7 +19,7 @@ The committed configuration is local-only and disabled by default. Do not deploy
 
 ## API
 
-`openapi.json` is the public v1 contract. All amounts supplied by merchants are integer USD cents (1–1000000); SOL amounts are decimal strings of integer lamports. Responses use `{ data, meta: { requestId } }` or `{ error: { code, message, requestId } }`.
+`openapi.json` is the public v1 contract. All amounts supplied by merchants are integer USD cents (1–1000000); SOL amounts are decimal strings of integer lamports. Responses use `{ data, meta: { requestId } }` or `{ error: { code, message, requestId } }`, except successful checkout RPC calls, which return JSON-RPC 2.0 results.
 
 | Endpoint                             | Authorization                                             |
 | ------------------------------------ | --------------------------------------------------------- |
@@ -27,12 +27,19 @@ The committed configuration is local-only and disabled by default. Do not deploy
 | `GET /v1/payments/:id`               | Owning merchant bearer                                    |
 | `GET /v1/checkout/:id`               | Payment-scoped checkout bearer                            |
 | `POST /v1/checkout/:id/transactions` | Checkout bearer; `{ "signature": "..." }`                 |
+| `POST /v1/checkout/:id/rpc`          | Checkout bearer; bounded read-only wallet preparation RPC |
 | `GET /health`                        | Public liveness/version                                   |
 | `GET /ready`                         | Public configuration readiness, not provider availability |
 
 Creation body: `{ "usdCents": 1000, "merchantReference": "invoice-123" }`. Use an opaque reference, never customer PII. Recipients and webhook destinations are operator-managed. The first version has no arbitrary return URL; the checkout shows the result directly.
 
 Merchant credentials stay on the integrating backend. The browser receives only the checkout capability. Idempotent retries return the original payment/quote/checkout link; changing the payload with the same key is a conflict. Merchant fulfillment must use authoritative status or authenticated webhooks, never a redirect.
+
+## Checkout RPC
+
+Set `SOLANA_RPC_URL` in server-only configuration (for example the Helius Devnet endpoint with a dedicated dev key). Never put the keyed URL in public/VITE configuration. Keep prod credentials separate and unused during local acceptance. Keys within one Helius project share quotas; local tests must not change Iris credentials or restrictions.
+
+The authenticated RPC route accepts only JSON-RPC `getGenesisHash` with `[]` and `getLatestBlockhash` with `[{"commitment":"finalized"}]`, while the payment is unexpired and unsettled. No batches, notifications, transaction writes, caller-selected URLs or arbitrary parameters. Limits: 12 requests/checkout/minute and 60 globally/minute, plus the existing checkout/IP limits. Request and provider bodies are bounded to 4096 bytes; upstream requests have an eight-second timeout and do not follow redirects. Only validated result fields are returned; errors never reflect provider responses or credentials. Shared provider quotas can still be exhausted; configure edge abuse controls before hosting. The legacy `rpcUrl` payment field remains a public, unkeyed Devnet URL for older clients and is deprecated.
 
 ## Checks
 

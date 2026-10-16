@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "crypto_gateway",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Non-custodial USD-to-SOL Devnet payments. Merchant endpoints require server-side credentials; checkout endpoints require payment-scoped capabilities."
   },
   "paths": {
@@ -50,6 +50,33 @@
         "parameters": [{ "$ref": "#/components/parameters/PaymentId" }],
         "responses": {
           "200": { "$ref": "#/components/responses/Payment" },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/checkout/{id}/rpc": {
+      "post": {
+        "operationId": "checkoutRpc",
+        "description": "Bounded read-only RPC for active unsettled payments. Only getGenesisHash with [] and getLatestBlockhash with [{commitment: finalized}]. No batches, notifications, arbitrary destinations or transaction submission. Limited to 12 requests per checkout/minute and 60 globally/minute in addition to existing limits. Provider failures are sanitized gateway errors.",
+        "security": [{ "checkoutBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/PaymentId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CheckoutRpcRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON-RPC 2.0 result, not a gateway data envelope. Provider credentials and extra fields are never returned.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CheckoutRpcResult" }
+              }
+            }
+          },
           "default": { "$ref": "#/components/responses/Error" }
         }
       }
@@ -125,6 +152,109 @@
       }
     },
     "schemas": {
+      "RpcId": {
+        "oneOf": [
+          { "type": "string", "minLength": 1, "maxLength": 64 },
+          {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        ]
+      },
+      "CheckoutRpcRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["jsonrpc", "id", "method", "params"],
+        "properties": {
+          "jsonrpc": { "const": "2.0", "type": "string" },
+          "id": { "$ref": "#/components/schemas/RpcId" },
+          "method": {
+            "type": "string",
+            "enum": ["getGenesisHash", "getLatestBlockhash"]
+          },
+          "params": { "type": "array" }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "method": { "const": "getGenesisHash" },
+              "params": { "type": "array", "maxItems": 0 }
+            }
+          },
+          {
+            "properties": {
+              "method": { "const": "getLatestBlockhash" },
+              "params": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["commitment"],
+                  "properties": {
+                    "commitment": { "type": "string", "const": "finalized" }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "CheckoutRpcResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["jsonrpc", "id", "result"],
+        "properties": {
+          "jsonrpc": { "type": "string", "const": "2.0" },
+          "id": { "$ref": "#/components/schemas/RpcId" },
+          "result": {
+            "oneOf": [
+              {
+                "type": "string",
+                "const": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["context", "value"],
+                "properties": {
+                  "context": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["slot"],
+                    "properties": {
+                      "slot": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    }
+                  },
+                  "value": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["blockhash", "lastValidBlockHeight"],
+                    "properties": {
+                      "blockhash": {
+                        "type": "string",
+                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                        "description": "Must decode to exactly 32 bytes."
+                      },
+                      "lastValidBlockHeight": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
       "CreatePayment": {
         "type": "object",
         "additionalProperties": false,
@@ -170,7 +300,11 @@
           "asset": { "type": "string", "const": "SOL" },
           "recipient": { "type": "string" },
           "memo": { "type": "string" },
-          "rpcUrl": { "type": "string" },
+          "rpcUrl": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Legacy public Devnet URL only; never the configured provider URL. New checkout clients use authenticated POST /v1/checkout/{id}/rpc instead."
+          },
           "quote": {
             "type": "object",
             "additionalProperties": false,

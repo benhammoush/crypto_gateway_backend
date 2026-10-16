@@ -185,6 +185,175 @@ function transfer(payment: Payment, sig = signature): ParsedTransaction {
   };
 }
 
+describe("checkout RPC authorization and limits", () => {
+  it("allows the SDK metadata header in approved-origin preflight only", async () => {
+    const preflight = (origin: string) =>
+      worker.fetch(
+        new Request(
+          "http://localhost:8787/v1/checkout/22222222-2222-4222-8222-222222222222/rpc",
+          {
+            method: "OPTIONS",
+            headers: {
+              origin,
+              "access-control-request-method": "POST",
+              "access-control-request-headers":
+                "authorization,content-type,solana-client",
+            },
+          },
+        ),
+        env,
+      );
+    const approved = await preflight("http://localhost:5173");
+    expect(approved.status).toBe(200);
+    expect(approved.headers.get("access-control-allow-origin")).toBe(
+      "http://localhost:5173",
+    );
+    const headers = approved.headers
+      .get("access-control-allow-headers")!
+      .toLowerCase()
+      .split(/,\s*/);
+    expect(headers).toEqual(
+      expect.arrayContaining([
+        "authorization",
+        "content-type",
+        "solana-client",
+      ]),
+    );
+    const rejected = await preflight("https://attacker.example.org");
+    expect(rejected.status).toBe(403);
+    expect(rejected.headers.has("access-control-allow-origin")).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  async function rpcCall(
+    id: string,
+    token: string,
+    body: unknown = {
+      jsonrpc: "2.0",
+      id: 7,
+      method: "getGenesisHash",
+      params: [],
+    },
+    origin = "http://localhost:5173",
+  ) {
+    return worker.fetch(
+      new Request(`http://localhost:8787/v1/checkout/${id}/rpc`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          origin,
+        },
+        body: JSON.stringify(body),
+      }),
+      env,
+    );
+  }
+
+  it("requires the owning checkout capability and rejects batches/origins", async () => {
+    const { id, token } = await create();
+    const other = await create("another_checkout_key");
+    fetchMock.mockClear();
+    for (const wrong of [credential, other.token, "x".repeat(64)]) {
+      expect((await rpcCall(id, wrong)).status).toBe(401);
+    }
+    expect((await rpcCall(id, token, [])).status).toBe(400);
+    expect(
+      (await rpcCall(id, token, { padding: "x".repeat(4097) })).status,
+    ).toBe(413);
+    expect(
+      (await rpcCall(id, token, {}, "https://attacker.example.org")).status,
+    ).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ jsonrpc: "2.0", id: 1, result: DEVNET_GENESIS }),
+    );
+    const response = await rpcCall(id, token);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "http://localhost:5173",
+    );
+    expect(await response.json()).toEqual({
+      jsonrpc: "2.0",
+      id: 7,
+      result: DEVNET_GENESIS,
+    });
+  });
+
+  it("bounds upstream calls per checkout and rejects inactive payments", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(
+      Math.floor(Date.now() / 60_000) * 60_000 + 1,
+    );
+    const { id, token } = await create();
+    const inactive = await create("inactive_checkout_key");
+    fetchMock.mockClear();
+    fetchMock.mockImplementation(async () =>
+      Response.json({ jsonrpc: "2.0", id: 1, result: DEVNET_GENESIS }),
+    );
+    for (let i = 0; i < 12; i++)
+      expect((await rpcCall(id, token)).status).toBe(200);
+    expect((await rpcCall(id, token)).status).toBe(429);
+    expect(fetchMock).toHaveBeenCalledTimes(12);
+    await env.DB.prepare("UPDATE payments SET expires_at = 0 WHERE id = ?")
+      .bind(inactive.id)
+      .run();
+    fetchMock.mockClear();
+    expect((await rpcCall(inactive.id, inactive.token)).status).toBe(409);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(
+      (
+        await worker.fetch(
+          new Request(`http://localhost:8787/v1/checkout/${id}/rpc`, {
+            method: "POST",
+            headers: {
+              authorization: `Bearer ${token}`,
+              "content-type": "application/json",
+            },
+            body: "{}",
+          }),
+          { ...env, PAYMENTS_ENABLED: "false" },
+        )
+      ).status,
+    ).toBe(503);
+  });
+});
+
+it("bounds aggregate RPC use across checkout capabilities", async () => {
+  const payments = [];
+  for (let i = 0; i < 6; i++)
+    payments.push(await create(`rpc_global_fixture_${i}`));
+  fetchMock.mockClear();
+  fetchMock.mockImplementation(async () =>
+    Response.json({ jsonrpc: "2.0", id: 1, result: DEVNET_GENESIS }),
+  );
+  const start = Math.floor(Date.now() / 60_000) * 60_000;
+  vi.spyOn(Date, "now").mockReturnValue(start + 1);
+  let count = 0;
+  for (const { id, token } of payments) {
+    for (let i = 0; i < 12; i++) {
+      const response = await worker.fetch(
+        new Request(`http://localhost:8787/v1/checkout/${id}/rpc`, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "getGenesisHash",
+            params: [],
+          }),
+        }),
+        env,
+      );
+      expect(response.status).toBe(++count <= 60 ? 200 : 429);
+    }
+  }
+  expect(fetchMock).toHaveBeenCalledTimes(60);
+}, 30_000);
+
 describe("pricing", () => {
   it("uses exact upward rounding, including exponent notation", () => {
     expect(lamportsForUsd(100, "3")).toBe("333333334");
