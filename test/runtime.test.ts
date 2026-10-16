@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { readFileSync } from "node:fs";
 import { sha256 } from "../src/security";
-import { DEVNET_GENESIS, MEMO_PROGRAM, ParsedTransaction } from "../src/solana";
+import { MEMO_PROGRAM, ParsedTransaction } from "../src/solana";
 import { SOL_MINT } from "../src/price";
 
 let mf: Miniflare;
@@ -53,7 +53,20 @@ beforeAll(async () => {
           });
         const body = (await request.json()) as { method: string };
         if (body.method === "getGenesisHash")
-          return Response.json({ result: DEVNET_GENESIS });
+          return Response.json({
+            jsonrpc: "2.0",
+            id: 1,
+            result: "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+          });
+        if (body.method === "getLatestBlockhash")
+          return Response.json({
+            jsonrpc: "2.0",
+            id: 1,
+            result: {
+              context: { slot: 123 },
+              value: { blockhash: "1".repeat(32), lastValidBlockHeight: 100 },
+            },
+          });
         if (body.method === "getTransaction")
           return Response.json({ result: tx });
         throw new Error("Unexpected runtime network request.");
@@ -93,6 +106,24 @@ it("retries null-to-finalized transactions through the actual bundled scheduled 
     };
   };
   const token = new URL(data.checkoutUrl).hash.slice(1);
+  for (const [method, params] of [
+    ["getGenesisHash", []],
+    ["getLatestBlockhash", [{ commitment: "finalized" }]],
+  ]) {
+    const result = await mf.dispatchFetch(
+      `http://localhost/v1/checkout/${data.id}/rpc`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 9, method, params }),
+      },
+    );
+    expect(result.status).toBe(200);
+    expect(await result.json()).toMatchObject({ jsonrpc: "2.0", id: 9 });
+  }
   const signature = "1".repeat(64);
   const submitted = await mf.dispatchFetch(
     `http://localhost/v1/checkout/${data.id}/transactions`,
@@ -124,6 +155,16 @@ it("retries null-to-finalized transactions through the actual bundled scheduled 
           { pubkey: recipient, signer: false },
         ],
         instructions: [
+          {
+            programId: "ComputeBudget111111111111111111111111111111",
+            accounts: [],
+            data: "3qi1MbrtkR83",
+          },
+          {
+            programId: "ComputeBudget111111111111111111111111111111",
+            accounts: [],
+            data: "Fj2Eoy",
+          },
           {
             programId: "11111111111111111111111111111111",
             parsed: {

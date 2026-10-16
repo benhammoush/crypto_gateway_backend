@@ -1,4 +1,5 @@
 import { config } from "./config";
+import { checkoutRpc } from "./checkout-rpc";
 import {
   checkoutToken,
   createPayment,
@@ -54,7 +55,7 @@ function response(
             vary: "Origin",
             "access-control-allow-methods": "GET, POST, OPTIONS",
             "access-control-allow-headers":
-              "Authorization, Content-Type, Idempotency-Key",
+              "Authorization, Content-Type, Idempotency-Key, Solana-Client",
           }
         : {}),
     },
@@ -71,7 +72,7 @@ export default {
       if (path === "/health" && request.method === "GET") {
         return response(
           {
-            data: { service: "crypto_gateway_backend", version: "0.1.0" },
+            data: { service: "crypto_gateway_backend", version: "0.2.0" },
             meta: { requestId },
           },
           requestId,
@@ -155,9 +156,8 @@ export default {
           data = await paymentView(env.DB, settings, payment, true);
         }
       } else {
-        const match = /^\/v1\/checkout\/([a-f0-9-]{36})(\/transactions)?$/.exec(
-          path,
-        );
+        const match =
+          /^\/v1\/checkout\/([a-f0-9-]{36})(\/transactions|\/rpc)?$/.exec(path);
         if (
           !match ||
           (match[2] ? request.method !== "POST" : request.method !== "GET")
@@ -171,6 +171,16 @@ export default {
             401,
           );
         await rateLimit(env.DB, `checkout:${payment.id}`, 60);
+        if (match[2] === "/rpc") {
+          await rateLimit(env.DB, `rpc:${payment.id}`, 12);
+          await rateLimit(env.DB, "rpc:global", 60);
+          return response(
+            await checkoutRpc(settings.rpc, payment, await jsonBody(request)),
+            requestId,
+            origin,
+            settings.checkoutOrigin,
+          );
+        }
         if (match[2]) {
           const body = await jsonBody(request);
           if (

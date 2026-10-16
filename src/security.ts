@@ -64,7 +64,7 @@ export function bearer(request: Request): string {
 
 /** Bound the streamed body as well as Content-Length. */
 export async function jsonBody(
-  request: Request,
+  request: Pick<Request, "headers" | "body">,
 ): Promise<Record<string, unknown>> {
   if (!request.headers.get("content-type")?.startsWith("application/json")) {
     throw new PublicError("INVALID_REQUEST", "Use application/json.", 415);

@@ -34,3 +34,44 @@ it("publishes a closed USD-only input contract and both credential boundaries", 
     { checkoutBearer: [] },
   ]);
 });
+
+it("documents only authenticated, bounded read-only checkout RPC", () => {
+  const validate = ajv.compile({ $ref: "gateway#/$defs/CheckoutRpcRequest" });
+  const request = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "getGenesisHash",
+    params: [],
+  };
+  expect(validate(request)).toBe(true);
+  expect(
+    validate({
+      ...request,
+      method: "getLatestBlockhash",
+      params: [{ commitment: "finalized" }],
+    }),
+  ).toBe(true);
+  for (const invalid of [
+    [request],
+    { ...request, id: null },
+    { ...request, method: "sendTransaction" },
+    { ...request, upstream: "https://attacker.example.org" },
+    {
+      ...request,
+      method: "getLatestBlockhash",
+      params: [{ commitment: "processed" }],
+    },
+  ])
+    expect(validate(invalid)).toBe(false);
+  expect(document.paths["/v1/checkout/{id}/rpc"].post.security).toEqual([
+    { checkoutBearer: [] },
+  ]);
+  const result = ajv.compile({ $ref: "gateway#/$defs/CheckoutRpcResult" });
+  expect(
+    result({
+      jsonrpc: "2.0",
+      id: 1,
+      result: "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+    }),
+  ).toBe(true);
+});

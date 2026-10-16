@@ -3,17 +3,103 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      target:
+        type: choice
+        options: [dev, production]
+        default: dev
+        required: true
+      sha:
+        description: Exact merged source SHA; production must use the dev-accepted source
+        type: string
+        required: true
 permissions:
   contents: read
 jobs:
+  source:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate selected source before executing candidate code
+        id: source
+        env:
+          SOURCE_SHA: ${{ inputs.sha || github.sha }}
+          TARGET: ${{ inputs.target || 'dev' }}
+        run: |
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          case "$TARGET" in dev|production) ;; *) exit 1 ;; esac
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            test "$GITHUB_REF" = refs/heads/main
+            git merge-base --is-ancestor "$SOURCE_SHA" origin/main
+          fi
+          printf 'sha=%s\n' "$SOURCE_SHA" >> "$GITHUB_OUTPUT"
   quality:
+    needs: source
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run check
       - run: npm audit --audit-level=high
+  deploy:
+    needs: [source, quality]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.target || 'dev' }}
+    concurrency:
+      group: crypto-gateway-backend-${{ inputs.target || 'dev' }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: control
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Validate isolated configuration and deploy checked source
+        env:
+          DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
+          DELIVERY_TARGET: ${{ inputs.target || 'dev' }}
+          SOURCE_SHA: ${{ needs.source.outputs.sha }}
+          WORKER_CONFIG_JSON: ${{ vars.WORKER_CONFIG_JSON }}
+          D1_SCHEMA_DIGEST: ${{ vars.D1_SCHEMA_DIGEST }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+          OTHER_D1_DATABASE_ID: ${{ vars.OTHER_D1_DATABASE_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          API_ORIGIN: ${{ vars.API_ORIGIN }}
+        run: |
+          node control/scripts/check-delivery.mjs
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$SOURCE_SHA"
+          fi
+          printf 'Source: `%s`\nTarget: %s\nRetain the prior compatible Worker version before mutation.\n' "$SOURCE_SHA" "$DELIVERY_TARGET" >> "$GITHUB_STEP_SUMMARY"
+          npx --no-install wrangler deployments list --name "crypto-gateway-$DELIVERY_TARGET" --json >> "$GITHUB_STEP_SUMMARY"
+          npx --no-install wrangler deploy --config wrangler.delivery.json
+          curl --fail --silent --show-error --max-time 30 "$API_ORIGIN/health"
+          curl --fail --silent --show-error --max-time 30 "$API_ORIGIN/ready"
+          npx --no-install wrangler deployments list --name "crypto-gateway-$DELIVERY_TARGET" --json >> "$GITHUB_STEP_SUMMARY"

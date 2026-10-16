@@ -1,8 +1,17 @@
 import { Payment, PublicError } from "./types";
+import { base58Length } from "./security";
 
-export const DEVNET_GENESIS = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+export const DEVNET_GENESIS = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
 export const MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 const SYSTEM_PROGRAM = "11111111111111111111111111111111";
+const COMPUTE_BUDGET_PROGRAM = "ComputeBudget111111111111111111111111111111";
+
+interface ParsedInstruction {
+  programId: string;
+  parsed?: unknown;
+  accounts?: string[];
+  data?: string;
+}
 
 export interface ParsedTransaction {
   blockTime: number | null;
@@ -15,7 +24,7 @@ export interface ParsedTransaction {
     signatures: string[];
     message: {
       accountKeys: { pubkey: string; signer: boolean }[];
-      instructions: { programId: string; parsed?: unknown }[];
+      instructions: ParsedInstruction[];
     };
   };
 }
@@ -55,7 +64,30 @@ export async function assertDevnet(url: string): Promise<void> {
   }
 }
 
-/** Verify only the supported checkout format: one top-level transfer and one memo. */
+/** Accept only account-free SetComputeUnitLimit(u32) / SetComputeUnitPrice(u64). */
+function computeBudgetKind(instruction: ParsedInstruction): number | null {
+  if (
+    instruction?.programId !== COMPUTE_BUDGET_PROGRAM ||
+    instruction.parsed !== undefined ||
+    !Array.isArray(instruction.accounts) ||
+    instruction.accounts.length !== 0 ||
+    typeof instruction.data !== "string" ||
+    instruction.data.length > 13
+  )
+    return null;
+  const length = base58Length(instruction.data);
+  if (length !== 5 && length !== 9) return null;
+  const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  let bytes = 0n;
+  for (const char of instruction.data)
+    bytes = bytes * 58n + BigInt(alphabet.indexOf(char));
+  const kind = Number(bytes >> BigInt((length - 1) * 8));
+  return (kind === 2 && length === 5) || (kind === 3 && length === 9)
+    ? kind
+    : null;
+}
+
+/** Verify transfer + memo, optionally preceded by unique compute limit/price settings. */
 export function validateTransfer(
   tx: ParsedTransaction,
   signature: string,
@@ -91,9 +123,20 @@ export function validateTransfer(
   )
     return reject();
   const instructions = tx.transaction.message.instructions;
-  if (!Array.isArray(instructions) || instructions.length !== 2)
+  if (
+    !Array.isArray(instructions) ||
+    instructions.length < 2 ||
+    instructions.length > 4
+  )
     return reject();
-  const [transfer, memo] = instructions;
+  const budgetKinds = new Set<number>();
+  for (const instruction of instructions.slice(0, -2)) {
+    const kind = computeBudgetKind(instruction);
+    if (kind === null || budgetKinds.has(kind)) return reject();
+    budgetKinds.add(kind);
+  }
+  const [transfer, memo] = instructions.slice(-2);
+  if (!transfer || !memo) return reject();
   const parsed = transfer.parsed as
     | {
         type?: string;
