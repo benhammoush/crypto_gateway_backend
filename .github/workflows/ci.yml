@@ -97,7 +97,7 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = push ]; then
             test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$SOURCE_SHA"
           fi
-          printf 'Source: `%s`\nTarget: %s\nRetain the prior compatible Worker version before mutation.\n' "$SOURCE_SHA" "$DELIVERY_TARGET" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Source: `%s`\nTarget: %s\nRetain any prior compatible Worker version; first production requires explicit no-predecessor acceptance under DELIVERY.md.\n' "$SOURCE_SHA" "$DELIVERY_TARGET" >> "$GITHUB_STEP_SUMMARY"
           npx --no-install wrangler deployments list --name "crypto-gateway-$DELIVERY_TARGET" --json >> "$GITHUB_STEP_SUMMARY"
           npx --no-install wrangler deploy --config wrangler.delivery.json
           curl --fail --silent --show-error --max-time 30 "$API_ORIGIN/health"
