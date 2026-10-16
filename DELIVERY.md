@@ -57,8 +57,11 @@ versions, provider/configuration identities, schema state and acceptance/recover
 evidence. Any intervening deployment/configuration change invalidates affected
 acceptance. A SHA input or green CI alone is not acceptance. Production holds no
 dev-verification credential and does not query dev. Initial Worker creation and
-first-deployment recovery acceptance remain operator checkpoints: retain eligible
-previous versions before enabling this workflow, and do not invent a predecessor.
+first-deployment recovery acceptance remain operator checkpoints. Retain eligible
+previous versions when available; for first production use the approved
+no-predecessor policy below, never invent a predecessor. Provider version listing
+must succeed before mutation; missing resources or failed inspection are not
+proof of empty history and require separately authorized setup/diagnosis.
 Deployment jobs retain provider version lists before/after mutation; export exact
 compatible identities to release records. Failure may mean partial mutation; inspect
 both providers before a new dispatch, never automatically retry or roll back.
@@ -68,6 +71,36 @@ Each repository owns its CI/releases. Do not infer the counterpart from latest m
 Deploy backward-compatible backend changes first. Accept the exact deployed dev pair, then promote those same source revisions through manual production gates. Shared-dev drift invalidates affected acceptance. Environment-specific builds preserve source/lockfile identity, not necessarily byte identity. Inspect both providers after partial failures.
 
 ## Monitoring and recovery
+
+### Approved first-production policy
+
+Before first production, validate the exact compatible dev backend/frontend pair
+with controlled payment/failure acceptance and rehearse dev application rollback.
+Restore and revalidate that candidate pair afterward. Rehearse database recovery
+only on an isolated non-production copy. Explicitly accept and record that first
+production has no previous accepted production pair to restore; an initial Worker
+version or a successful smoke check is not an accepted recovery baseline.
+
+If first production fails or its outcome is uncertain, stop and inspect both
+providers, D1/schema state and payment/webhook/Cron effects. Recover only through
+fresh, separately authorized exact-SHA dispatches from main with native production
+approval for each affected repository, using an exact dev-accepted compatible pair,
+backend first when both change. Repeat affected acceptance if source,
+configuration or schema compatibility changes. Never blindly retry, rerun
+production jobs, bypass approval, down-migrate/reset D1 or reverse/delete payment
+data. Webhook replay and data repair remain separate approvals.
+
+Retain the first accepted immutable frontend deployment and compatible Worker
+version, both source SHAs/versions, configuration/schema identities and acceptance
+evidence as the rollback candidate for later releases; reverify compatibility with
+current migrations before use. No predecessor is fabricated or required for this
+first-production exception. These are operator-reviewed prerequisites, not
+automatic proof from a SHA or provider version list. Per-environment
+`DEPLOY_ENABLED`, native approval and all isolation/schema guards remain mandatory.
+This policy does not authorize publication, activation, provisioning, migrations,
+deployment, payment execution or data mutation. Production remains Devnet-only.
+
+### Ongoing monitoring and recovery
 
 Before public activation, configure alerts for API errors, pending verification age, exhausted webhook events and delivery backlog. Health/readiness alone do not certify payments. Logs may include safe request IDs/error classifications, never credentials, checkout tokens or provider payloads.
 
