@@ -59,6 +59,45 @@ inventory can still report absent schema or incomplete records; it does not set
 `D1_SCHEMA_DIGEST`, authorize migrations or certify readiness. Operator review and
 separate execution approval remain mandatory before any live dispatch or mutation.
 
+### First dev migration — separate mutation approval
+
+The **Apply first dev schema (manual)** workflow is not an inspection workflow.
+It may mutate only the configured dev D1 schema and Wrangler migration records by
+applying the reviewed `0001_payments.sql`. Owner review/merge and separate execution
+approval are required. It has no production target, Worker deployment or payment
+activation. The workflow runs from main, requires its exact reviewed current-main
+SHA and explicit first-dev confirmation, rejects job reruns, shares the dev
+concurrency group, and repeats source quality checks before accessing credentials.
+
+Required dev inputs include distinct `D1_DATABASE_ID`/`OTHER_D1_DATABASE_ID` values,
+the intended account, both deployment/payment flags explicitly false and the
+separate `CLOUDFLARE_D1_MIGRATION_TOKEN` environment secret. Do not replace or broaden
+the existing read-only inspection token. The migration credential must permit D1
+metadata/SELECT reads and schema writes on the intended account; no Workers write
+permission is needed. Cloudflare resource scoping may be account-wide rather than
+database-only: the owner must review that capability/blast radius, including other
+databases in the same account, before granting access. It is not automatically a
+dev-only credential merely because it is stored in a dev GitHub environment.
+
+The runner accepts only the reviewed first-migration filename and fixed migration
+digest. A fresh read-only inspection must still show the exact dev identity,
+absent application schema and no migration tracking table or records. Initialized,
+partial or drifted states stop without automatic repair. Wrangler 4.149.0 is invoked
+once using the installed local CLI, a generated migration-only configuration and
+an absolute selected-source migrations directory. The config has no Worker
+entrypoint, runtime vars or secret values and must never be used for deployment.
+The CLI owns its normal migration bookkeeping; no fake migration record is inserted.
+
+After the single command, one read-only inspection checks source-derived definitions
+and the expected migration record. A failed/timed-out command remains uncertain even
+if subsequent definitions match; any unavailable or inconsistent readback stops the
+job. The command may have created the tracking table or applied some/all work before
+failure. Do not rerun, reset, down-migrate or repair automatically: diagnose and obtain
+a fresh reviewed recovery scope first. Raw Wrangler/provider output is not printed.
+The sanitized summary does not set `D1_SCHEMA_DIGEST`; operator attestation and later
+Worker bootstrap/deployment remain separate checkpoints. This workflow must not be
+used for future migrations without a new reviewed scope and implementation.
+
 ## Compatible source selection
 
 ### Shared manual-production setup
