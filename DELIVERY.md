@@ -36,6 +36,29 @@ runtime configuration, deployment capability, payments or recovery eligibility.
 Retain the exact workflow source SHA and sanitized result before deciding the next
 separately authorized setup step. Never enable delivery merely to run this check.
 
+### Separate read-only dev schema inspection
+
+The separately reviewed **Inspect dev schema (read-only)** workflow is manual,
+main-only and dev-only, with deployment tracking disabled and activation flags
+required unset/false. It does not depend on a Worker existing. After matching the
+configured dev D1 metadata, it uses the D1 query API with only two fixed SELECTs:
+the SQLite schema catalog and, only when it is a table, migration names from
+`d1_migrations`. It accepts no SQL inputs and never queries payment/application rows.
+The query endpoint uses HTTP POST but supports `D1 Read`; no additional write
+permission is requested for this check. Responses are bounded, not retried, and
+must report zero writes with `changed_db=false`; missing/contradictory metrics stop
+inspection rather than certifying a read-only outcome.
+
+Expected table/index definitions are derived from the selected migration files in
+disposable local memory only. Nothing is migrated remotely. Unexpected, partial or
+rewritten application definitions, views posing as migration tracking, unknown
+migration names and inaccessible provider state require review, not automatic
+repair. Output contains fixed classifications/counts and recognized migration names,
+never raw SQL, provider payloads, credentials or application rows. A successful
+inventory can still report absent schema or incomplete records; it does not set
+`D1_SCHEMA_DIGEST`, authorize migrations or certify readiness. Operator review and
+separate execution approval remain mandatory before any live dispatch or mutation.
+
 ## Compatible source selection
 
 ### Shared manual-production setup
