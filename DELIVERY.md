@@ -16,6 +16,26 @@ Each hosted target needs independent Worker, D1, merchant credentials, checkout 
 6. Probe RPC genesis and bounded dependencies; apply reviewed forward-compatible migrations before API code, then deploy the compatible frontend. Readiness remains configuration-only.
 7. Complete manual localhost acceptance and controlled live dev payment/failure/recovery acceptance. Fixtures and dry-run builds are insufficient.
 
+## Read-only dev access verification
+
+After its reviewed source is merged, the separate **Verify dev access (read-only)**
+workflow may be manually dispatched from main under separate execution approval.
+It uses only the dev environment, with deployment tracking disabled, and requires
+deployment/payment flags to remain unset or false. It makes bounded authenticated
+GET requests for the configured D1 database metadata and the named dev Worker's
+deployment listing. It never deploys, applies migrations, runs SQL, reads payment
+rows, fetches runtime secret values or changes provider configuration. No extra
+credential or dependency installation is required in the credential-bearing step.
+
+The existing dev account/database identities and `CLOUDFLARE_API_TOKEN` must permit
+those reads. Missing or inaccessible Workers, HTTP failures, mismatched database
+identities and malformed responses fail closed; they are not empty-history proof
+and never trigger provisioning or retries. A successful result certifies only the
+selected reads, not least-privilege token scope, schema state, origin ownership,
+runtime configuration, deployment capability, payments or recovery eligibility.
+Retain the exact workflow source SHA and sanitized result before deciding the next
+separately authorized setup step. Never enable delivery merely to run this check.
+
 ## Compatible source selection
 
 ### Shared manual-production setup
