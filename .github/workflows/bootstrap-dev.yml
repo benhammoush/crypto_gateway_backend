@@ -1,0 +1,86 @@
+name: Bootstrap first dev Worker (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Exact reviewed current-main SHA (not a branch)
+        required: true
+        type: string
+      worker_id:
+        description: Verified immutable ID of the existing empty crypto-gateway-dev Worker
+        required: true
+        type: string
+      confirm_first_dev_deployment:
+        description: Authorize one first deployment with payments disabled, public workers.dev route and Cron
+        required: true
+        default: false
+        type: boolean
+permissions:
+  contents: read
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Require a fresh exact-main confirmation before candidate code
+        env:
+          EXPECTED_SHA: ${{ inputs.sha }}
+          CONFIRM: ${{ inputs.confirm_first_dev_deployment }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$CONFIRM" = true
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$EXPECTED_SHA" = "$GITHUB_SHA"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm audit --audit-level=high
+  bootstrap:
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: dev
+    concurrency:
+      group: crypto-gateway-backend-dev
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Reconfirm current main after the dev concurrency gate
+        env:
+          EXPECTED_SHA: ${{ inputs.sha }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$EXPECTED_SHA" = "$GITHUB_SHA"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXPECTED_SHA"
+      - name: Inspect initialized dev schema and empty Worker, deploy once, read back
+        env:
+          SOURCE_SHA: ${{ inputs.sha }}
+          EXPECTED_WORKER_ID: ${{ inputs.worker_id }}
+          CONFIRM_FIRST_DEV_DEPLOYMENT: ${{ inputs.confirm_first_dev_deployment }}
+          DELIVERY_TARGET: dev
+          DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
+          PAYMENTS_ENABLED: ${{ vars.PAYMENTS_ENABLED }}
+          WORKER_CONFIG_JSON: ${{ vars.WORKER_CONFIG_JSON }}
+          D1_SCHEMA_DIGEST: ${{ vars.D1_SCHEMA_DIGEST }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+          OTHER_D1_DATABASE_ID: ${{ vars.OTHER_D1_DATABASE_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_WORKER_BOOTSTRAP_TOKEN: ${{ secrets.CLOUDFLARE_WORKER_BOOTSTRAP_TOKEN }}
+          API_ORIGIN: ${{ vars.API_ORIGIN }}
+        run: node scripts/bootstrap-dev.mjs

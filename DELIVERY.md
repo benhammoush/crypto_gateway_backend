@@ -100,6 +100,66 @@ used for future migrations without a new reviewed scope and implementation.
 
 ## Compatible source selection
 
+### First dev Worker code bootstrap (separate manual approval)
+
+The **Bootstrap first dev Worker (manual)** workflow is the only first-code
+exception to the normal delivery job's successful legacy deployment-history
+listing prerequisite. It never treats a legacy 404/403 or other failed read as
+empty history. Normal delivery, read-only verification and production gates are
+unchanged. Source review/merge and a separate explicit execution approval are
+required; adding this workflow does not authorize dispatch or deployment.
+
+It accepts only a fresh attempt-1 manual dispatch from main with the exact reviewed
+current-main `sha`, the independently verified existing empty Worker's immutable
+`worker_id`, and `confirm_first_dev_deployment:true`. Quality/advisory checks must
+pass first, current main is rechecked after the shared backend-dev concurrency
+gate, and both GitHub `DEPLOY_ENABLED` and `PAYMENTS_ENABLED` must remain explicitly
+false. Hosted runtime `PAYMENTS_ENABLED` must also be false. The dedicated
+confirmation authorizes only this first dev code deployment, not ordinary delivery
+activation. Production and non-main/automatic/rerun execution are rejected.
+
+Keep the inspection `CLOUDFLARE_API_TOKEN` unchanged. The separately approved dev
+environment secret `CLOUDFLARE_WORKER_BOOTSTRAP_TOKEN` needs Workers Scripts Write
+and the reads required by the new Workers metadata/version and legacy deployment
+endpoints. Its account-level capability can affect other Workers; owner review of
+the grant/blast radius remains mandatory. The inspection token alone reads D1's
+metadata and fixed schema/migration SELECTs. No runtime secret is passed to the
+bootstrap workflow, and no provider tokens or raw responses are logged.
+
+Before mutation, fresh D1 inspection must match the source definitions, migration
+records and configured attestation. Successful new Workers API metadata must match
+the supplied immutable ID, `crypto-gateway-dev`, and exact `API_ORIGIN`, with public
+and preview subdomains disabled and no listed resource references. A successful,
+bounded new-API versions inventory must explicitly contain zero versions and
+`total_count:0`. Missing/inaccessible/malformed metadata, any existing version or
+schema drift stops before mutation. This does not certify an accepted recovery
+predecessor or repair a resource with history.
+
+The pinned local Wrangler runs once with a managed source-root configuration and
+explicit account ID, never local `wrangler.toml`. The bootstrap fixes preview URLs
+off; the reviewed hosted template enables the public workers.dev route and minutely
+Cron. The source's scheduled handler returns before database/payment/webhook work
+while payments are disabled. This creates real API code exposure and a deployment;
+it is not merely resource provisioning. No schema migration, frontend deployment,
+secret upload or payment operation is requested.
+
+Readback must identify exactly one first version and its single 100% deployment,
+matching Worker identity/subdomain state and fresh schema metadata. Source, Worker,
+version and deployment IDs are retained in the job summary before smoke checks.
+Configuration smoke requires `/health` HTTP 200 with exact service/package version;
+disabled `/ready` must be HTTP 503 with exactly `ready:false`, `environment:dev`,
+`network:solana-devnet`. A generic 503/NOT_CONFIGURED response is failure, not disabled
+readiness. Normal delivery now also checks the status/body corresponding to its
+configured payment flag; it never enables payments to make smoke pass.
+
+Any failed/timed-out deployment or incomplete readback remains uncertain even if
+later checks pass. Inspect before a separately authorized recovery decision; never
+rerun, retry deployment, reset D1, fabricate history or automatically roll back.
+Zero-version checks reject a later dispatch once the first version exists. A first
+successful bootstrap is not hosted-payment acceptance or an accepted rollback
+baseline. Owner-entered provider runtime secrets (which can create deployments),
+future delivery enablement and hosted acceptance remain separate approved steps.
+
 ### Shared manual-production setup
 
 Each GitHub environment has `CLOUDFLARE_ACCOUNT_ID`, `API_ORIGIN`, `D1_DATABASE_ID`,

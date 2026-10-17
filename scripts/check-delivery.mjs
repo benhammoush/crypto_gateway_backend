@@ -36,8 +36,7 @@ export function migrationDigest(directory = "migrations") {
  * @param digest - Selected source's migration-set fingerprint.
  * @returns Validated managed configuration for the hosted Worker only.
  */
-export function deliveryConfig(env, digest) {
-  assert.equal(env.DEPLOY_ENABLED, "true", "Deployment remains disabled.");
+export function hostedConfig(env, digest) {
   assert.equal(env.GITHUB_REF, "refs/heads/main");
   assert.match(env.SOURCE_SHA ?? "", /^[a-f0-9]{40}$/);
   const target = env.DELIVERY_TARGET;
@@ -116,6 +115,12 @@ export function deliveryConfig(env, digest) {
   }
   assert.equal(typeof config.vars.WEBHOOK_HOSTS, "string");
   return config;
+}
+
+/** Normal delivery still requires activation; bootstrap has its own strict gate. */
+export function deliveryConfig(env, digest) {
+  assert.equal(env.DEPLOY_ENABLED, "true", "Deployment remains disabled.");
+  return hostedConfig(env, digest);
 }
 
 if (

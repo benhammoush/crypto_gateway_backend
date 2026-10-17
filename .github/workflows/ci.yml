@@ -100,6 +100,5 @@ jobs:
           printf 'Source: `%s`\nTarget: %s\nRetain any prior compatible Worker version; first production requires explicit no-predecessor acceptance under DELIVERY.md.\n' "$SOURCE_SHA" "$DELIVERY_TARGET" >> "$GITHUB_STEP_SUMMARY"
           npx --no-install wrangler deployments list --name "crypto-gateway-$DELIVERY_TARGET" --json >> "$GITHUB_STEP_SUMMARY"
           npx --no-install wrangler deploy --config wrangler.delivery.json
-          curl --fail --silent --show-error --max-time 30 "$API_ORIGIN/health"
-          curl --fail --silent --show-error --max-time 30 "$API_ORIGIN/ready"
+          node control/scripts/smoke-delivery.mjs
           npx --no-install wrangler deployments list --name "crypto-gateway-$DELIVERY_TARGET" --json >> "$GITHUB_STEP_SUMMARY"
