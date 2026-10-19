@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { hostedConfig, migrationDigest } from "./check-delivery.mjs";
 import { inspectDevSchema } from "./inspect-dev-schema.mjs";
-import { readJson, smokeDelivery } from "./smoke-delivery.mjs";
+import { readJson, smokeConfig, smokeDelivery } from "./smoke-delivery.mjs";
 
 /** Separate gate: never reinterpret normal DEPLOY_ENABLED or failed history reads. */
 export function bootstrapConfig(env) {
@@ -137,6 +137,7 @@ export async function bootstrapDev(
   } = {},
 ) {
   const config = bootstrapConfig(env);
+  smokeConfig(env);
   const inspectSchema = async () => {
     const schema = await inspect(env);
     assert.equal(schema.sourceSha, env.SOURCE_SHA);

@@ -18,6 +18,45 @@ Each hosted target needs independent Worker, D1, merchant credentials, checkout 
 
 ## Read-only dev access verification
 
+### Private dev data-plane smoke
+
+The private-dev pilot uses Cloudflare Access **Service Auth** on only
+`crypto-gateway-dev.benhxm.workers.dev`, with independent runtime-proxy and CI
+service identities. Applying protection, creating tokens and deployment are separate
+owner approvals; this code does not configure Access or change payment flags.
+The frontend proxy retains merchant/checkout Authorization and uses independent
+`CF-Access-Client-Id`/`CF-Access-Client-Secret` headers. Never substitute service auth
+for payment authorization, expose machine credentials in browsers or add public
+health/webhook exceptions to bypass failed checks. Keep Worker previews disabled
+and inspect other entry points before claiming privacy. No production/other-project
+Access settings change is part of this pilot.
+
+The GitHub **dev environment** needs `GATEWAY_ACCESS_CI_CLIENT_ID` and
+`GATEWAY_ACCESS_CI_CLIENT_SECRET` for the smoke helper. `smokeConfig` requires both
+and the exact dev origin before normal delivery mutation; the first-bootstrap tool
+also checks this dependency before mutation because it shares the helper. That does
+not authorize rerunning bootstrap against an existing Worker. Existing first-deploy
+guards and ordinary `DEPLOY_ENABLED` controls are unchanged. Production receives no
+dev token and rejects accidental dev credentials. The CI identity is separate, not
+inherently read-only: Access application/path scope must be reviewed independently.
+
+Smoke performs only bounded GET `/health` and `/ready`, without redirects/retry,
+preserving disabled readiness `503/ready:false` and expected Devnet identity. It
+does not create/read payment rows or activate anything. Keep payments/demo off
+through the privacy cutover; the failed Devnet test stays stopped and payment-row
+existence is unresolved. The proxy aggregates backend IP limits by Vercel egress;
+do not trust arbitrary browser-forwarded IPs to restore per-client identity. Existing
+checkout/merchant/global limits and frontend WAF controls remain in force.
+
+Stage compatible reviewed proxy/CI changes and credentials before an explicitly
+approved dev cutover. Verify anonymous direct API rejection and authenticated
+frontend/CI access. A failed cutover stays private and disabled pending diagnosis;
+never reopen access, reset data or retry a payment automatically. Source/fixtures
+are not live private-hosting or payment acceptance. See the frontend DELIVERY.md
+for the cross-provider rollout/rollback boundaries and secret placement.
+
+### Existing provider metadata verification
+
 After its reviewed source is merged, the separate **Verify dev access (read-only)**
 workflow may be manually dispatched from main under separate execution approval.
 It uses only the dev environment, with deployment tracking disabled, and requires

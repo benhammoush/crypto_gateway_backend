@@ -54,7 +54,9 @@ function fixture() {
     D1_DATABASE_ID: id,
     OTHER_D1_DATABASE_ID: "22222222-2222-4222-8222-222222222222",
     D1_SCHEMA_DIGEST: migrationDigest(),
-    API_ORIGIN: "https://api.example.com",
+    API_ORIGIN: "https://crypto-gateway-dev.benhxm.workers.dev",
+    GATEWAY_ACCESS_CI_CLIENT_ID: "synthetic-access-id",
+    GATEWAY_ACCESS_CI_CLIENT_SECRET: "synthetic-access-secret",
     WORKER_CONFIG_JSON: JSON.stringify(config),
   };
   const references = Object.fromEntries(
@@ -292,6 +294,10 @@ describe("configuration smoke is not payment activation", () => {
       const result = await smokeDelivery(f.env, async (url, options) => {
         expect(options.method).toBe("GET");
         expect(options.redirect).toBe("error");
+        expect(options.headers).toEqual({
+          "CF-Access-Client-Id": "synthetic-access-id",
+          "CF-Access-Client-Secret": "synthetic-access-secret",
+        });
         return globalThis.Response.json(
           {
             data: url.endsWith("/health")

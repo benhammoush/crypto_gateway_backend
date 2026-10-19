@@ -83,4 +83,6 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_WORKER_BOOTSTRAP_TOKEN: ${{ secrets.CLOUDFLARE_WORKER_BOOTSTRAP_TOKEN }}
           API_ORIGIN: ${{ vars.API_ORIGIN }}
+          GATEWAY_ACCESS_CI_CLIENT_ID: ${{ secrets.GATEWAY_ACCESS_CI_CLIENT_ID }}
+          GATEWAY_ACCESS_CI_CLIENT_SECRET: ${{ secrets.GATEWAY_ACCESS_CI_CLIENT_SECRET }}
         run: node scripts/bootstrap-dev.mjs
