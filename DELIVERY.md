@@ -8,13 +8,19 @@ Each hosted target needs independent Worker, D1, merchant credentials, checkout 
 
 ## Activation prerequisites
 
-1. Configure protected main and strict required quality checks, administrator enforcement, no force push/deletion; maintainer diff review for solo maintenance.
+1. Configure protected main with strict required `quality` (GitHub Actions) and `CodeRabbit` checks bound to their respective apps, administrator enforcement, no force push/deletion, resolved conversations, at least one approving review, stale-review dismissal and independent last-push approval. CodeRabbit must finish reviewing the current head and submit an actual approving review; a successful status alone is insufficient. Verify its integration and approval behavior before relying on the gate.
 2. Configure dev/production native environments restricted to main. Production requires enforceable explicit approval with admin bypass disabled. If unsupported, keep production disabled pending an approved alternative.
 3. Verify provider isolation, scoped credentials and origin ownership. Disable Vercel Git auto-deploy; CI must own deployment. No hosted PR previews or cross-repository dispatch tokens.
 4. Keep each environment's `DEPLOY_ENABLED` unset/false until readiness and separate enablement authorization. The owning CI checks the exact selected merged source, then uses the native target environment. Main pushes select dev; manual dev redeployment/production dispatch run from main with an exact `sha`. Serialize per target without cancelling active operations. Production requires a new dispatch and native approval; no dev-verification credential or custom release coordinator is used.
 5. Review runtime dependency advisories, rate limiting, webhook destination behavior, retention and backup controls. Provision monitoring/alerts separately.
 6. Probe RPC genesis and bounded dependencies; apply reviewed forward-compatible migrations before API code, then deploy the compatible frontend. Readiness remains configuration-only.
 7. Complete manual localhost acceptance and controlled live dev payment/failure/recovery acceptance. Fixtures and dry-run builds are insufficient.
+
+## Assigned task to manual merge
+
+The owner assigns a bounded task and authorizes its endpoint; no backlog pickup is automatic. The assistant owns implementation, affected checks, authorized PR publication and valid CI/review repairs, including resuming a paused CodeRabbit review. `.coderabbit.yaml` enables real approval after review and prevents author-triggered approval/resolve overrides. The owner decides when to merge after current-head checks and approval pass. No automatic merger, merge PAT or separate orchestration service is required.
+
+An authorized human merge triggers the existing main-push dev pipeline and hosted smoke. Check the exact source/provider identity and affected dev behavior before calling it verified; green PR CI is not deployment or payment acceptance. Deployment enablement, private-dev access and first-dev provisioning retain their separate prerequisites below. Production promotion remains a manual dispatch of the exact accepted dev source pair with native approval and recovery evidence; no new permissions or deployment flags are granted by this process.
 
 ## Read-only dev access verification
 
