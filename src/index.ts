@@ -1,4 +1,4 @@
-import { config } from "./config";
+import { config, ConfigurationError } from "./config";
 import { checkoutRpc } from "./checkout-rpc";
 import {
   checkoutToken,
@@ -72,7 +72,7 @@ export default {
       if (path === "/health" && request.method === "GET") {
         return response(
           {
-            data: { service: "crypto_gateway_backend", version: "0.2.0" },
+            data: { service: "crypto_gateway_backend", version: "0.2.1" },
             meta: { requestId },
           },
           requestId,
@@ -82,7 +82,28 @@ export default {
       }
       try {
         settings = config(env);
-      } catch {
+      } catch (error) {
+        if (
+          env.APP_ENV === "dev" &&
+          path === "/ready" &&
+          request.method === "GET" &&
+          error instanceof ConfigurationError
+        ) {
+          return response(
+            {
+              error: {
+                code: "NOT_CONFIGURED",
+                message: "Gateway configuration is incomplete.",
+                requestId,
+                diagnostic: error.diagnostic,
+              },
+            },
+            requestId,
+            origin,
+            undefined,
+            503,
+          );
+        }
         throw new PublicError(
           "NOT_CONFIGURED",
           "Gateway configuration is incomplete.",

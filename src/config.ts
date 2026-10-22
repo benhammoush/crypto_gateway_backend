@@ -1,12 +1,46 @@
 import { base58Length } from "./security";
 import { Config, Env, Merchant } from "./types";
 
+type ConfigurationDiagnostic =
+  | "APP_ENV_INVALID"
+  | "CHECKOUT_ORIGIN_INVALID"
+  | "RPC_URL_INVALID"
+  | "RPC_URL_NOT_HTTPS"
+  | "RPC_URL_HAS_CREDENTIALS"
+  | "MERCHANTS_JSON_INVALID"
+  | "MERCHANT_CONFIGURATION_INVALID"
+  | "WEBHOOK_CONFIGURATION_INVALID"
+  | "PRICE_KEY_MISSING"
+  | "CHECKOUT_SECRET_TOO_SHORT"
+  | "MERCHANTS_MISSING";
+
+/** Fixed classifications only; never retain parser errors or configuration values. */
+export class ConfigurationError extends Error {
+  constructor(readonly diagnostic: ConfigurationDiagnostic) {
+    super("Gateway configuration is incomplete.");
+  }
+}
+
+function configurationUrl(
+  value: string | undefined,
+  diagnostic: ConfigurationDiagnostic,
+): URL {
+  try {
+    return new URL(value ?? "");
+  } catch {
+    throw new ConfigurationError(diagnostic);
+  }
+}
+
 /** Validate configuration without probing dependencies. Missing setup fails closed. */
 export function config(env: Env): Config {
   if (!["local", "dev", "production"].includes(env.APP_ENV ?? ""))
-    throw new Error("Invalid APP_ENV.");
+    throw new ConfigurationError("APP_ENV_INVALID");
   const local = env.APP_ENV === "local";
-  const checkout = new URL(env.CHECKOUT_ORIGIN ?? "");
+  const checkout = configurationUrl(
+    env.CHECKOUT_ORIGIN,
+    "CHECKOUT_ORIGIN_INVALID",
+  );
   if (
     checkout.origin !== env.CHECKOUT_ORIGIN ||
     checkout.username ||
@@ -16,14 +50,21 @@ export function config(env: Env): Config {
         checkout.protocol !== "http:"
       : checkout.protocol !== "https:")
   ) {
-    throw new Error("Invalid checkout origin.");
+    throw new ConfigurationError("CHECKOUT_ORIGIN_INVALID");
   }
-  const rpc = new URL(env.SOLANA_RPC_URL ?? "");
-  if (rpc.protocol !== "https:" || rpc.username || rpc.password)
-    throw new Error("Invalid RPC URL.");
-  const merchants: unknown = JSON.parse(env.MERCHANTS_JSON ?? "[]");
+  const rpc = configurationUrl(env.SOLANA_RPC_URL, "RPC_URL_INVALID");
+  if (rpc.protocol !== "https:")
+    throw new ConfigurationError("RPC_URL_NOT_HTTPS");
+  if (rpc.username || rpc.password)
+    throw new ConfigurationError("RPC_URL_HAS_CREDENTIALS");
+  let merchants: unknown;
+  try {
+    merchants = JSON.parse(env.MERCHANTS_JSON ?? "[]");
+  } catch {
+    throw new ConfigurationError("MERCHANTS_JSON_INVALID");
+  }
   if (!Array.isArray(merchants) || merchants.length > 100)
-    throw new Error("Invalid merchants.");
+    throw new ConfigurationError("MERCHANTS_JSON_INVALID");
   const ids = new Set<string>();
   const hashes = new Set<string>();
   const hosts = (env.WEBHOOK_HOSTS ?? "")
@@ -40,14 +81,17 @@ export function config(env: Env): Config {
       ids.has(merchant.id) ||
       hashes.has(merchant.apiKeyHash)
     ) {
-      throw new Error("Invalid merchant configuration.");
+      throw new ConfigurationError("MERCHANT_CONFIGURATION_INVALID");
     }
     ids.add(merchant.id);
     hashes.add(merchant.apiKeyHash);
     if (Boolean(merchant.webhookUrl) !== Boolean(merchant.webhookSecret))
-      throw new Error("Incomplete webhook configuration.");
+      throw new ConfigurationError("WEBHOOK_CONFIGURATION_INVALID");
     if (merchant.webhookUrl) {
-      const url = new URL(merchant.webhookUrl);
+      const url = configurationUrl(
+        merchant.webhookUrl,
+        "WEBHOOK_CONFIGURATION_INVALID",
+      );
       if (
         url.protocol !== "https:" ||
         (url.port && url.port !== "443") ||
@@ -62,18 +106,16 @@ export function config(env: Env): Config {
         /^[\d.]+$/.test(url.hostname) ||
         (merchant.webhookSecret?.length ?? 0) < 32
       ) {
-        throw new Error("Invalid webhook destination.");
+        throw new ConfigurationError("WEBHOOK_CONFIGURATION_INVALID");
       }
     }
   }
   const enabled = env.PAYMENTS_ENABLED === "true";
-  if (
-    enabled &&
-    (!env.JUPITER_API_KEY ||
-      (env.CHECKOUT_SECRET?.length ?? 0) < 32 ||
-      !merchants.length)
-  ) {
-    throw new Error("Payment configuration is incomplete.");
+  if (enabled) {
+    if (!env.JUPITER_API_KEY) throw new ConfigurationError("PRICE_KEY_MISSING");
+    if ((env.CHECKOUT_SECRET?.length ?? 0) < 32)
+      throw new ConfigurationError("CHECKOUT_SECRET_TOO_SHORT");
+    if (!merchants.length) throw new ConfigurationError("MERCHANTS_MISSING");
   }
   return {
     environment: env.APP_ENV as Config["environment"],
