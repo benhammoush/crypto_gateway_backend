@@ -8,6 +8,8 @@ import {
 import { deliveryConfig, migrationDigest } from "../scripts/check-delivery.mjs";
 import { smokeDelivery } from "../scripts/smoke-delivery.mjs";
 
+const { version } = JSON.parse(readFileSync("package.json", "utf8"));
+
 /** Synthetic first-dev state; no network or real credentials are used. */
 function fixture() {
   const id = "11111111-1111-4111-8111-111111111111";
@@ -295,7 +297,7 @@ describe("configuration smoke is not payment activation", () => {
         return globalThis.Response.json(
           {
             data: url.endsWith("/health")
-              ? { service: "crypto_gateway_backend", version: "0.2.0" }
+              ? { service: "crypto_gateway_backend", version }
               : {
                   ready: enabled,
                   environment: "dev",
@@ -324,7 +326,7 @@ describe("configuration smoke is not payment activation", () => {
           const data = health
             ? {
                 service: "crypto_gateway_backend",
-                version: kind === "wrong-version" ? "wrong" : "0.2.0",
+                version: kind === "wrong-version" ? "wrong" : version,
               }
             : {
                 ready: kind === "ready-true",
