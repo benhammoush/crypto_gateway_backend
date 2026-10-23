@@ -1,0 +1,40 @@
+name: Diagnose dev delivery (read-only)
+on:
+  # Separate from CI/recovery: this diagnostic can NEVER deploy the application.
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    # Never execute PR/branch diagnostic code with the hosted dev credential.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    environment:
+      name: dev
+      deployment: false
+    concurrency:
+      # Observe a stable target alongside the existing deployment/migration writers.
+      group: deploy-${{ github.repository_owner }}-${{ github.event.repository.name }}-dev
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+      # Match the release tool install; no provider secret reaches installation/build.
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: Read dev access and classify local packaging without uploading
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+          OTHER_D1_DATABASE_ID: ${{ vars.OTHER_D1_DATABASE_ID }}
+          D1_SCHEMA_DIGEST: ${{ vars.D1_SCHEMA_DIGEST }}
+          API_ORIGIN: ${{ vars.API_ORIGIN }}
+          WORKER_CONFIG_JSON: ${{ vars.WORKER_CONFIG_JSON }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/diagnose-dev-delivery.mjs
