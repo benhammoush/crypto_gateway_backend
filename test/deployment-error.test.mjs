@@ -175,7 +175,9 @@ it("wires only the subprocess executor into the existing pinned deployment and r
     readFileSync(".github/ci-cd.json", "utf8"),
   );
   expect(automationSha).toMatch(/^[a-f0-9]{40}$/);
-  expect(readFileSync(".github/workflows/ci.yml", "utf8")).toContain(
-    `deploy-worker.yml@${automationSha}`,
-  );
+  for (const name of ["ci.yml", "deploy-production.yml"]) {
+    const workflow = readFileSync(`.github/workflows/${name}`, "utf8");
+    expect(workflow).toContain(`verify-worker.yml@${automationSha}`);
+    expect(workflow).toContain(`deploy-worker.yml@${automationSha}`);
+  }
 });
