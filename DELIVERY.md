@@ -63,6 +63,27 @@ runtime configuration, deployment capability, payments or recovery eligibility.
 Retain the exact workflow source SHA and sanitized result before deciding the next
 separately authorized setup step. Never enable delivery merely to run this check.
 
+### Read-only dev delivery diagnosis
+
+After a failed delivery, reconcile the retained checkpoint with provider state
+before considering another attempt. Once merged, the manual
+`diagnose-dev-delivery.yml` workflow can be dispatched on `main` to inspect the
+existing dev credential's metadata access and locally dry-run the Worker package.
+It does not require disabling an already enabled dev environment, and does not
+change the stricter bootstrap/access-verification guards.
+
+The diagnostic uses only fixed dev metadata GETs and a credential-free Wrangler
+dry run. Its summary contains HTTP classifications, numeric provider error codes,
+configuration-match booleans and the packaging result, never raw response bodies,
+token identities/policies, secret values or subprocess output. Optional token
+self-policy inspection may be denied; do not broaden credential permissions just
+to make it visible. Listed write permissions are not proof of effective deployment
+access. A successful dry run does not validate provider writes or live readiness.
+
+No upload, deployment, schema SQL, payment request or secret change occurs. The
+diagnostic neither retries a failed delivery nor authorizes a later recovery. A
+fresh deployment still requires the applicable separate authorization and gates.
+
 ### Separate read-only dev schema inspection
 
 The separately reviewed **Inspect dev schema (read-only)** workflow is manual,
