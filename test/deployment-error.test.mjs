@@ -172,6 +172,6 @@ it("wires only the subprocess executor into the existing pinned deployment and r
   expect(adapter).toContain("deploymentExecutor()");
   expect(adapter).toContain("await smokeDelivery(process.env, fetcher)");
   expect(readFileSync(".github/workflows/ci.yml", "utf8")).toContain(
-    "1d4b201fc53f05c53de2fdc37ab9b184b676a1be",
+    "1d73e4b1124ca2a065cf748d52747ffb63a014e9",
   );
 });

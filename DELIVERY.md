@@ -3,7 +3,8 @@
 ## Versioned CI/CD entry points
 
 The [shared contract](https://github.com/benhammoush/ci-cd-workflows/blob/main/docs/contract.md)
-is pinned in `.github/ci-cd.json`. CI checks PRs/main and delivers only successful
+v1.0.1 is pinned in `.github/ci-cd.json`. The Worker profile does not install
+browsers. CI checks PRs/main and delivers only successful
 exact main commits to enabled dev. Separate manual `deploy-production.yml` selects
 a full merged `sha`, requires retained successful dev evidence, verifies the
 candidate and waits for native approval. CI dispatch is the exact-SHA dev recovery
