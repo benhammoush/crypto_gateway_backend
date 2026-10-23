@@ -1,6 +1,13 @@
 /** Retain fixed failure classifications, never raw subprocess output or credentials. @file */
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join } from "node:path";
 
 // Unknown provider numbers are deliberately omitted rather than treated as safe text.
 const providerCodes = new Set([
@@ -52,7 +59,15 @@ export function retainDeploymentFailure(
 ) {
   const record = JSON.parse(readFileSync(path, "utf8"));
   record.failure = diagnostic;
-  writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`);
+  // Same filesystem: a failed write/rename must leave the recovery checkpoint intact.
+  const temporary = mkdtempSync(join(dirname(path), ".delivery-failure-"));
+  try {
+    const pending = join(temporary, "delivery-record.json");
+    writeFileSync(pending, `${JSON.stringify(record, null, 2)}\n`);
+    renameSync(pending, path);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
 }
 
 /** Pass through the exact mutation once; suppress raw errors even if evidence retention fails. */

@@ -1,5 +1,12 @@
 import { expect, it, vi } from "vitest";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+  renameSync,
+  readdirSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -7,6 +14,37 @@ import {
   deploymentExecutor,
   retainDeploymentFailure,
 } from "../scripts/deployment-error.mjs";
+
+vi.mock("node:fs", async (importOriginal) => {
+  const original = await importOriginal();
+  return {
+    ...original,
+    writeFileSync: vi.fn(original.writeFileSync),
+    renameSync: vi.fn(original.renameSync),
+  };
+});
+
+it("preserves the original checkpoint and removes temporary files on write or rename failure", () => {
+  for (const operation of [writeFileSync, renameSync]) {
+    const directory = mkdtempSync(join(tmpdir(), "gateway-atomic-test-"));
+    try {
+      const path = join(directory, "delivery-record.json");
+      const original =
+        '{"status":"mutation-requested","previousDeploymentId":"prior"}\n';
+      writeFileSync(path, original);
+      vi.mocked(operation).mockImplementationOnce(() => {
+        throw Error("simulated filesystem failure");
+      });
+      expect(() =>
+        retainDeploymentFailure(classifyDeploymentError({ status: 1 }), path),
+      ).toThrow("simulated filesystem failure");
+      expect(readFileSync(path, "utf8")).toBe(original);
+      expect(readdirSync(directory)).toEqual(["delivery-record.json"]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }
+});
 
 it("retains only fixed classifications from errors containing credentials and provider responses", () => {
   const error = Object.assign(new Error("secret command and credential"), {
