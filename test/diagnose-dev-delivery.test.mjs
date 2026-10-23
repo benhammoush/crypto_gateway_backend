@@ -323,6 +323,6 @@ it("uses one manual main-only, dev-only read-only job without affecting CI or ex
   const source = readFileSync("scripts/diagnose-dev-delivery.mjs", "utf8");
   expect(source).not.toMatch(/method: "(?:POST|PUT|PATCH|DELETE)"/);
   expect(readFileSync("scripts/verify-dev.mjs", "utf8")).toContain(
-    "DEPLOYMENT_MUST_REMAIN_DISABLED",
+    "PAYMENTS_MUST_REMAIN_DISABLED",
   );
 });

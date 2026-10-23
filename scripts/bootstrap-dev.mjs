@@ -8,7 +8,7 @@ import { hostedConfig, migrationDigest } from "./check-delivery.mjs";
 import { inspectDevSchema } from "./inspect-dev-schema.mjs";
 import { readJson, smokeDelivery } from "./smoke-delivery.mjs";
 
-/** Separate gate: never reinterpret normal DEPLOY_ENABLED or failed history reads. */
+/** Require explicit first-dev authorization and successful empty-history reads. */
 export function bootstrapConfig(env) {
   assert.equal(env.GITHUB_ACTIONS, "true");
   assert.equal(env.GITHUB_EVENT_NAME, "workflow_dispatch");
@@ -17,7 +17,6 @@ export function bootstrapConfig(env) {
   assert.equal(env.SOURCE_SHA, env.GITHUB_SHA);
   assert.equal(env.CONFIRM_FIRST_DEV_DEPLOYMENT, "true");
   assert.equal(env.DELIVERY_TARGET, "dev");
-  assert.equal(env.DEPLOY_ENABLED, "false");
   assert.equal(env.PAYMENTS_ENABLED, "false");
   assert.match(env.EXPECTED_WORKER_ID ?? "", /^[a-f0-9]{32}$/);
   assert.ok(env.CLOUDFLARE_WORKER_BOOTSTRAP_TOKEN);

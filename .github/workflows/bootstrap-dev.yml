@@ -73,7 +73,6 @@ jobs:
           EXPECTED_WORKER_ID: ${{ inputs.worker_id }}
           CONFIRM_FIRST_DEV_DEPLOYMENT: ${{ inputs.confirm_first_dev_deployment }}
           DELIVERY_TARGET: dev
-          DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
           PAYMENTS_ENABLED: ${{ vars.PAYMENTS_ENABLED }}
           WORKER_CONFIG_JSON: ${{ vars.WORKER_CONFIG_JSON }}
           D1_SCHEMA_DIGEST: ${{ vars.D1_SCHEMA_DIGEST }}

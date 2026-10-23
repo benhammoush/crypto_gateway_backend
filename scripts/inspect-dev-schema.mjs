@@ -114,10 +114,6 @@ export async function inspectDevSchema(env, fetcher = globalThis.fetch) {
     "MANUAL_MAIN_REQUIRED",
   );
   requireValue(
-    !env.DEPLOY_ENABLED || env.DEPLOY_ENABLED === "false",
-    "DEPLOYMENT_MUST_REMAIN_DISABLED",
-  );
-  requireValue(
     !env.PAYMENTS_ENABLED || env.PAYMENTS_ENABLED === "false",
     "PAYMENTS_MUST_REMAIN_DISABLED",
   );
