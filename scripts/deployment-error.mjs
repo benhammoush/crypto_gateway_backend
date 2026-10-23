@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { errorSealer } from "./encrypted-error.mjs";
 
 // Unknown provider numbers are deliberately omitted rather than treated as safe text.
 const providerCodes = new Set([
@@ -56,9 +57,11 @@ export function classifyDeploymentError(error) {
 export function retainDeploymentFailure(
   diagnostic,
   path = "delivery-record.json",
+  encryptedError,
 ) {
   const record = JSON.parse(readFileSync(path, "utf8"));
   record.failure = diagnostic;
+  if (encryptedError) record.encryptedError = encryptedError;
   // Same filesystem: a failed write/rename must leave the recovery checkpoint intact.
   const temporary = mkdtempSync(join(dirname(path), ".delivery-failure-"));
   try {
@@ -74,6 +77,7 @@ export function retainDeploymentFailure(
 export function deploymentExecutor(
   execute = execFileSync,
   retain = retainDeploymentFailure,
+  seal = errorSealer(),
 ) {
   return (...args) => {
     try {
@@ -81,7 +85,7 @@ export function deploymentExecutor(
     } catch (error) {
       const diagnostic = classifyDeploymentError(error);
       try {
-        retain(diagnostic);
+        retain(diagnostic, "delivery-record.json", seal(error, args[2]?.env));
       } catch {
         // Preserve failure, not a provider error containing command/env/response data.
         throw new Error("WRANGLER_FAILED_DIAGNOSTIC_RETENTION_FAILED");
