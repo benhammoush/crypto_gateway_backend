@@ -121,7 +121,9 @@ it("does not retry or expose the original error, including when evidence persist
       if (retentionFails) throw Error("secret-path");
     });
     try {
-      deploymentExecutor(execute, retain)("node", [], {});
+      deploymentExecutor(execute, retain)("node", [], {
+        env: { CI_ENVIRONMENT: "dev", SECRET: "secret-token" },
+      });
       throw Error("expected failure");
     } catch (error) {
       expect(error.message).toBe(
@@ -133,7 +135,9 @@ it("does not retry or expose the original error, including when evidence persist
       expect(JSON.stringify(error)).not.toContain("secret");
     }
     expect(execute).toHaveBeenCalledOnce();
-    expect(retain).toHaveBeenCalledOnce();
+    expect(retain).toHaveBeenCalledExactlyOnceWith(
+      classifyDeploymentError({ status: 1 }),
+    );
   }
 });
 
