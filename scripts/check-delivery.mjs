@@ -117,10 +117,8 @@ export function hostedConfig(env, digest) {
   return config;
 }
 
-/** Only production requires activation; bootstrap has its own strict gate. */
+/** Validate isolated hosted delivery; bootstrap has its own strict gate. */
 export function deliveryConfig(env, digest) {
-  if (env.DELIVERY_TARGET === "production")
-    assert.equal(env.DEPLOY_ENABLED, "true", "Deployment remains disabled.");
   return hostedConfig(env, digest);
 }
 

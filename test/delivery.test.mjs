@@ -81,16 +81,25 @@ describe("manual production delivery guard", () => {
       ).toEqual(config);
     },
   );
-  it.each([undefined, "false"])(
-    "production retains deployment opt-in %s",
+  it.each([undefined, "false", "true"])(
+    "production ignores obsolete deployment opt-in %s",
     (enabled) => {
-      const { env } = fixture();
+      const { env, config } = fixture();
+      config.name = "crypto-gateway-production";
+      config.vars.APP_ENV = "production";
+      config.d1_databases[0].database_name = "crypto-gateway-production";
       expect(() =>
         deliveryConfig(
-          { ...env, DELIVERY_TARGET: "production", DEPLOY_ENABLED: enabled },
+          {
+            ...env,
+            DELIVERY_TARGET: "production",
+            GITHUB_EVENT_NAME: "workflow_dispatch",
+            DEPLOY_ENABLED: enabled,
+            WORKER_CONFIG_JSON: JSON.stringify(config),
+          },
           migrationDigest(),
         ),
-      ).toThrow("Deployment remains disabled");
+      ).not.toThrow();
     },
   );
   it("rejects non-main, unreviewed schema, shared D1 and unsafe target settings", () => {
