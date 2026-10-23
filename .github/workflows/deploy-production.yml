@@ -26,17 +26,17 @@ jobs:
   # Project: schema migration, first-code bootstrap and provisioning remain separate
   # approved operations. Passing this job does not create a Worker or initialize D1.
   verify_release:
-    uses: benhammoush/ci-cd-workflows/.github/workflows/verify-worker.yml@d7d0c297f0b4038e9815349fd16f79bb92d77ceb
+    uses: benhammoush/ci-cd-workflows/.github/workflows/verify-worker.yml@a35aea526ca8b69d7ec27ff7952cff6af8c1bbe5
     with:
       # Shared: fixed implementation revision must match the reusable workflow pin.
-      automation_sha: d7d0c297f0b4038e9815349fd16f79bb92d77ceb
+      automation_sha: a35aea526ca8b69d7ec27ff7952cff6af8c1bbe5
       source_sha: ${{ inputs.sha }}
       # Shared: select production configuration explicitly, never an arbitrary target.
       environment: production
       node_version: "24"
   # Shared: the called job binds production and waits for native approval after
   # verification. GitHub settings own reviewer/main-only/no-admin-bypass policy.
-  # Recheck dev evidence/source/artifact identity after approval; honor enablement
+  # Recheck dev evidence/source/artifact identity after approval; retain isolation
   # and serialize production mutations without cancelling an active operation.
   # Project: ci-deploy.mjs validates isolated Worker/D1 IDs, managed configuration
   # and migration-set digest, deploys checked bytes with --no-bundle, then reads
@@ -47,9 +47,9 @@ jobs:
   deploy_production:
     needs: verify_release
     if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
-    uses: benhammoush/ci-cd-workflows/.github/workflows/deploy-worker.yml@d7d0c297f0b4038e9815349fd16f79bb92d77ceb
+    uses: benhammoush/ci-cd-workflows/.github/workflows/deploy-worker.yml@a35aea526ca8b69d7ec27ff7952cff6af8c1bbe5
     with:
-      automation_sha: d7d0c297f0b4038e9815349fd16f79bb92d77ceb
+      automation_sha: a35aea526ca8b69d7ec27ff7952cff6af8c1bbe5
       source_sha: ${{ inputs.sha }}
       environment: production
       node_version: "24"
