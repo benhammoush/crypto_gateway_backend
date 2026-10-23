@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { deliveryConfig, migrationDigest } from "./check-delivery.mjs";
 import { smokeDelivery } from "./smoke-delivery.mjs";
+import { deploymentExecutor } from "./deployment-error.mjs";
 
 Object.assign(process.env, {
   SOURCE_SHA: process.env.CI_SOURCE_SHA,
@@ -16,13 +17,18 @@ const { publishWorker } = await import(
     resolve(process.env.CI_AUTOMATION_ROOT, "scripts/providers.mjs"),
   ).href
 );
-await publishWorker(process.env, {
-  name: config.name,
-  config: "wrangler.delivery.json",
-  entry: "dist/index.js",
-  configuration: config,
-  /** Verify health/readiness without creating, submitting or settling a payment. */
-  smoke: async (fetcher) => {
-    await smokeDelivery(process.env, fetcher);
+await publishWorker(
+  process.env,
+  {
+    name: config.name,
+    config: "wrangler.delivery.json",
+    entry: "dist/index.js",
+    configuration: config,
+    /** Verify health/readiness without creating, submitting or settling a payment. */
+    smoke: async (fetcher) => {
+      await smokeDelivery(process.env, fetcher);
+    },
   },
-});
+  fetch,
+  deploymentExecutor(),
+);
