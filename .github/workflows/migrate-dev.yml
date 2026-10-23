@@ -16,13 +16,13 @@ permissions:
 jobs:
   migrate:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 8
     environment:
       name: dev
       deployment: false
     concurrency:
-      group: crypto-gateway-backend-dev
+      group: deploy-${{ github.repository_owner }}-${{ github.event.repository.name }}-dev
       cancel-in-progress: false
     steps:
       - name: Require exact reviewed source and a fresh explicit dispatch

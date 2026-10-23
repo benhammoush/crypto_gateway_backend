@@ -275,7 +275,9 @@ describe("explicit first dev bootstrap", () => {
     const yaml = readFileSync(".github/workflows/bootstrap-dev.yml", "utf8");
     expect(yaml).toContain("needs: quality");
     expect(yaml).toContain("environment: dev");
-    expect(yaml).toContain("group: crypto-gateway-backend-dev");
+    expect(yaml).toContain(
+      "group: deploy-${{ github.repository_owner }}-${{ github.event.repository.name }}-dev",
+    );
     expect(yaml).toContain("cancel-in-progress: false");
     expect(yaml).toContain("git ls-remote origin refs/heads/main");
     expect(yaml).toContain("CLOUDFLARE_WORKER_BOOTSTRAP_TOKEN");
