@@ -31,28 +31,28 @@ jobs:
   # captures that prebundled Worker for --no-bundle delivery (no ci:prepare hook).
   # D1 schema changes are separate reviewed migrations, not part of this build.
   verify:
-    uses: benhammoush/ci-cd-workflows/.github/workflows/verify-worker.yml@37151e604a66c0dbb68b5631534c7124d4d95798
+    uses: benhammoush/ci-cd-workflows/.github/workflows/verify-worker.yml@d7d0c297f0b4038e9815349fd16f79bb92d77ceb
     with:
       # Shared: implementation checkout matches this workflow's immutable SHA.
-      automation_sha: 37151e604a66c0dbb68b5631534c7124d4d95798
+      automation_sha: d7d0c297f0b4038e9815349fd16f79bb92d77ceb
       # Shared: exact manual selection or the PR/main event revision.
       source_sha: ${{ inputs.sha || github.sha }}
       environment: dev
       # Project: Gateway's supported Node toolchain.
       node_version: "24"
-  # Shared: successful main push/manual dev checks precede any enabled delivery.
+  # Shared: successful main push/manual dev checks trigger delivery without an opt-in.
   # The called job binds dev and shares deploy-<owner>-<repository>-dev with
   # bootstrap-dev.yml/migrate-dev.yml; active operations are not cancelled.
   # Project: scripts/ci-deploy.mjs retains isolated Worker/D1 configuration and
   # migration-digest guards, followed by read-only health/readiness smoke.
   # This path does not provision D1, apply SQL or create/submit/settle payments.
-  # Disabled targets remain disabled; first bootstrap/migrations need separate approval.
+  # First bootstrap/migrations still need separate approval; production stays gated.
   deploy_dev:
     needs: verify
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    uses: benhammoush/ci-cd-workflows/.github/workflows/deploy-worker.yml@37151e604a66c0dbb68b5631534c7124d4d95798
+    uses: benhammoush/ci-cd-workflows/.github/workflows/deploy-worker.yml@d7d0c297f0b4038e9815349fd16f79bb92d77ceb
     with:
-      automation_sha: 37151e604a66c0dbb68b5631534c7124d4d95798
+      automation_sha: d7d0c297f0b4038e9815349fd16f79bb92d77ceb
       source_sha: ${{ inputs.sha || github.sha }}
       environment: dev
       node_version: "24"

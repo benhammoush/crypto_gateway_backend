@@ -72,9 +72,29 @@ describe("manual production delivery guard", () => {
     const { env, config } = fixture();
     expect(deliveryConfig(env, migrationDigest())).toEqual(config);
   });
-  it("rejects disabled, non-main, unreviewed schema, shared D1 and unsafe target settings", () => {
+  it.each([undefined, "false", "true"])(
+    "dev ignores deployment opt-in %s",
+    (enabled) => {
+      const { env, config } = fixture();
+      expect(
+        deliveryConfig({ ...env, DEPLOY_ENABLED: enabled }, migrationDigest()),
+      ).toEqual(config);
+    },
+  );
+  it.each([undefined, "false"])(
+    "production retains deployment opt-in %s",
+    (enabled) => {
+      const { env } = fixture();
+      expect(() =>
+        deliveryConfig(
+          { ...env, DELIVERY_TARGET: "production", DEPLOY_ENABLED: enabled },
+          migrationDigest(),
+        ),
+      ).toThrow("Deployment remains disabled");
+    },
+  );
+  it("rejects non-main, unreviewed schema, shared D1 and unsafe target settings", () => {
     for (const [key, value] of [
-      ["DEPLOY_ENABLED", "false"],
       ["GITHUB_REF", "refs/heads/feature"],
       ["SOURCE_SHA", "main"],
       ["DELIVERY_TARGET", "staging"],

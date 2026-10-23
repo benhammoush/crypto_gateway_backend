@@ -143,7 +143,7 @@ function fixture() {
 describe("explicit first dev bootstrap", () => {
   it("accepts successful empty-version inventory, deploys once, retains identities and reads back", async () => {
     const f = fixture();
-    expect(deliveryConfig.bind(null, f.env, migrationDigest())).toThrow();
+    expect(deliveryConfig.bind(null, f.env, migrationDigest())).not.toThrow();
     expect(bootstrapConfig(f.env).preview_urls).toBe(false);
     expect((await bootstrapDev(f.env, f.dependencies)).bootstrapVerified).toBe(
       true,
