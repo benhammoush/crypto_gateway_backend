@@ -2,10 +2,12 @@
 
 ## Versioned CI/CD entry points
 
+Automation 2.0 removes dev opt-ins when this adoption is merged to main.
+
 The [shared contract](https://github.com/benhammoush/ci-cd-workflows/blob/main/docs/contract.md)
-v1.0.1 is pinned in `.github/ci-cd.json`. The Worker profile does not install
+v2.0.0 is pinned in `.github/ci-cd.json`. The Worker profile does not install
 browsers. CI checks PRs/main and delivers only successful
-exact main commits to enabled dev. Separate manual `deploy-production.yml` selects
+exact main commits to dev without a deployment-enable switch. Separate manual `deploy-production.yml` selects
 a full merged `sha`, requires retained successful dev evidence, verifies the
 candidate and waits for native approval. CI dispatch is the exact-SHA dev recovery
 path. These replace older combined target-selector invocations, not isolation,
@@ -22,7 +24,7 @@ deployment occurs as part of this source migration.
 
 ## Targets
 
-Local → dev → production; no staging. Production remains Devnet-only. The existing CI now includes disabled-by-default hosted delivery jobs, not provisioning or hosted acceptance. Provisioning, remote settings, merges and deployment require explicit authorization.
+Local → dev → production; no staging. Production remains Devnet-only. Successful main verification automatically starts dev delivery; production remains opt-in. This does not establish provisioning or hosted acceptance. Provisioning, remote settings and merges require explicit authorization.
 
 Each hosted target needs independent Worker, D1, merchant credentials, checkout secret, recipient wallets, webhook secrets, allowed checkout origin and scoped deployment credential. Keep runtime secrets in provider-managed storage. No implicit production fallback. Configure explicit managed target files outside source; never reuse the local binding for hosted work.
 
@@ -31,7 +33,7 @@ Each hosted target needs independent Worker, D1, merchant credentials, checkout 
 1. Configure protected main with strict required `quality` (GitHub Actions) and `CodeRabbit` checks bound to their respective apps, administrator enforcement, no force push/deletion, resolved conversations, at least one approving review, stale-review dismissal and independent last-push approval. CodeRabbit must finish reviewing the current head and submit an actual approving review; a successful status alone is insufficient. Verify its integration and approval behavior before relying on the gate.
 2. Configure dev/production native environments restricted to main. Production requires enforceable explicit approval with admin bypass disabled. If unsupported, keep production disabled pending an approved alternative.
 3. Verify provider isolation, scoped credentials and origin ownership. Disable Vercel Git auto-deploy; CI must own deployment. No hosted PR previews or cross-repository dispatch tokens.
-4. Keep each environment's `DEPLOY_ENABLED` unset/false until readiness and separate enablement authorization. The owning CI checks the exact selected merged source, then uses the native target environment. Main pushes select dev; manual dev redeployment/production dispatch run from main with an exact `sha`. Serialize per target without cancelling active operations. Production requires a new dispatch and native approval; no dev-verification credential or custom release coordinator is used.
+4. Complete dev configuration before merging: dev ignores `DEPLOY_ENABLED`, including absent/false values. Keep production's `DEPLOY_ENABLED` unset/false until readiness and separate enablement authorization. The owning CI checks the exact selected merged source, then uses the native target environment. Main pushes select dev; manual dev redeployment/production dispatch run from main with an exact `sha`. Serialize per target without cancelling active operations. Production requires a new dispatch and native approval; no dev-verification credential or custom release coordinator is used.
 5. Review runtime dependency advisories, rate limiting, webhook destination behavior, retention and backup controls. Provision monitoring/alerts separately.
 6. Probe RPC genesis and bounded dependencies; apply reviewed forward-compatible migrations before API code, then deploy the compatible frontend. Readiness remains configuration-only.
 7. Complete manual localhost acceptance and controlled live dev payment/failure/recovery acceptance. Fixtures and dry-run builds are insufficient.
@@ -40,7 +42,7 @@ Each hosted target needs independent Worker, D1, merchant credentials, checkout 
 
 The owner assigns a bounded task and authorizes its endpoint; no backlog pickup is automatic. The assistant owns implementation, affected checks, authorized PR publication and valid CI/review repairs, including resuming a paused CodeRabbit review. `.coderabbit.yaml` enables real approval after review and prevents author-triggered approval/resolve overrides. The owner decides when to merge after current-head checks and approval pass. No automatic merger, merge PAT or separate orchestration service is required.
 
-An authorized human merge triggers the existing main-push dev pipeline and hosted smoke when enabled. Check the exact source/provider identity and affected dev behavior before calling it verified; green PR CI is not deployment or payment acceptance. Deployment enablement, private-dev access and first-dev provisioning retain their separate prerequisites below. Production promotion remains a manual dispatch of the exact accepted dev source pair with native approval and recovery evidence; no new permissions or deployment flags are granted by this process.
+An authorized human merge triggers the main-push dev pipeline and hosted smoke after successful verification, without a deployment-enable flag. Check the exact source/provider identity and affected dev behavior before calling it verified; green PR CI is not deployment or payment acceptance. Private-dev access and first-dev provisioning retain their separate prerequisites below. Production promotion remains a manual dispatch of the exact accepted dev source pair with native approval and recovery evidence; no new credentials are granted by this process.
 
 The owner must compare the selected production SHA and compatible frontend revision with the recorded dev acceptance and recovery evidence before granting native production approval. The workflow checks source format, main ancestry and target configuration; it does not query dev acceptance or validate a machine-readable acceptance attestation. This is deliberately an owner-reviewed promotion prerequisite, not a claim of automatic acceptance enforcement or a request for another promotion service.
 
@@ -302,8 +304,8 @@ version, both source SHAs/versions, configuration/schema identities and acceptan
 evidence as the rollback candidate for later releases; reverify compatibility with
 current migrations before use. No predecessor is fabricated or required for this
 first-production exception. These are operator-reviewed prerequisites, not
-automatic proof from a SHA or provider version list. Per-environment
-`DEPLOY_ENABLED`, native approval and all isolation/schema guards remain mandatory.
+automatic proof from a SHA or provider version list. Production `DEPLOY_ENABLED`,
+native approval and all isolation/schema guards remain mandatory.
 This policy does not authorize publication, activation, provisioning, migrations,
 deployment, payment execution or data mutation. Production remains Devnet-only.
 
