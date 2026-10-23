@@ -17,7 +17,6 @@ function environment() {
     GITHUB_EVENT_NAME: "workflow_dispatch",
     GITHUB_REF: "refs/heads/main",
     GITHUB_SHA: "a".repeat(40),
-    DEPLOY_ENABLED: "false",
     PAYMENTS_ENABLED: "false",
     CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
     D1_DATABASE_ID: "11111111-1111-4111-8111-111111111111",
@@ -76,21 +75,27 @@ function provider(catalog = [], records = []) {
   });
 }
 
-it("reports absent application schema without reading migration or payment rows", async () => {
-  const fetcher = provider();
-  const timeout = vi.spyOn(AbortSignal, "timeout");
-  const result = await inspectDevSchema(environment(), fetcher);
-  expect(result).toMatchObject({
-    schemaState: "application-schema-absent",
-    migrationTablePresent: false,
-    observedApplicationObjectCount: 0,
-    recordedExpectedMigrations: [],
-    schemaAttestationRecorded: false,
-  });
-  expect(fetcher).toHaveBeenCalledTimes(2);
-  expect(timeout).toHaveBeenCalledWith(15_000);
-  expect(JSON.stringify(result)).not.toContain("synthetic-secret");
-});
+it.each([undefined, "false", "true"])(
+  "ignores obsolete deploy flag %s and inspects schema without payment rows",
+  async (enabled) => {
+    const fetcher = provider();
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    const result = await inspectDevSchema(
+      { ...environment(), DEPLOY_ENABLED: enabled },
+      fetcher,
+    );
+    expect(result).toMatchObject({
+      schemaState: "application-schema-absent",
+      migrationTablePresent: false,
+      observedApplicationObjectCount: 0,
+      recordedExpectedMigrations: [],
+      schemaAttestationRecorded: false,
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(timeout).toHaveBeenCalledWith(15_000);
+    expect(JSON.stringify(result)).not.toContain("synthetic-secret");
+  },
+);
 
 it("compares source-derived definitions and expected migration names without attesting or mutating", async () => {
   const source = expectedSchema();
@@ -191,7 +196,6 @@ it("rejects unsafe context before any provider access", async () => {
     ["GITHUB_EVENT_NAME", "push"],
     ["GITHUB_REF", "refs/heads/feature"],
     ["GITHUB_SHA", "main"],
-    ["DEPLOY_ENABLED", "true"],
     ["PAYMENTS_ENABLED", "true"],
     ["CLOUDFLARE_ACCOUNT_ID", "../other"],
     ["D1_DATABASE_ID", "../other"],

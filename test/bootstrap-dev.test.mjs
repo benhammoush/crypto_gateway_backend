@@ -46,7 +46,6 @@ function fixture() {
     GITHUB_SHA: "a".repeat(40),
     SOURCE_SHA: "a".repeat(40),
     DELIVERY_TARGET: "dev",
-    DEPLOY_ENABLED: "false",
     PAYMENTS_ENABLED: "false",
     CONFIRM_FIRST_DEV_DEPLOYMENT: "true",
     EXPECTED_WORKER_ID: workerId,
@@ -141,19 +140,23 @@ function fixture() {
 }
 
 describe("explicit first dev bootstrap", () => {
-  it("accepts successful empty-version inventory, deploys once, retains identities and reads back", async () => {
-    const f = fixture();
-    expect(deliveryConfig.bind(null, f.env, migrationDigest())).not.toThrow();
-    expect(bootstrapConfig(f.env).preview_urls).toBe(false);
-    expect((await bootstrapDev(f.env, f.dependencies)).bootstrapVerified).toBe(
-      true,
-    );
-    expect(f.executions()).toBe(1);
-    expect(f.records.some((row) => row.deploymentId)).toBe(true);
-    expect(f.calls.some((row) => row.url.includes("workers/workers/"))).toBe(
-      true,
-    );
-  });
+  it.each([undefined, "false", "true"])(
+    "ignores obsolete deploy flag %s but requires empty-version inventory and one verified mutation",
+    async (enabled) => {
+      const f = fixture();
+      f.env.DEPLOY_ENABLED = enabled;
+      expect(deliveryConfig.bind(null, f.env, migrationDigest())).not.toThrow();
+      expect(bootstrapConfig(f.env).preview_urls).toBe(false);
+      expect(
+        (await bootstrapDev(f.env, f.dependencies)).bootstrapVerified,
+      ).toBe(true);
+      expect(f.executions()).toBe(1);
+      expect(f.records.some((row) => row.deploymentId)).toBe(true);
+      expect(f.calls.some((row) => row.url.includes("workers/workers/"))).toBe(
+        true,
+      );
+    },
+  );
   it.each([
     ["GITHUB_EVENT_NAME", "push"],
     ["GITHUB_RUN_ATTEMPT", "2"],
@@ -162,7 +165,6 @@ describe("explicit first dev bootstrap", () => {
     ["SOURCE_SHA", "e".repeat(40)],
     ["CONFIRM_FIRST_DEV_DEPLOYMENT", "false"],
     ["DELIVERY_TARGET", "production"],
-    ["DEPLOY_ENABLED", "true"],
     ["PAYMENTS_ENABLED", "true"],
     ["EXPECTED_WORKER_ID", ""],
     ["CLOUDFLARE_WORKER_BOOTSTRAP_TOKEN", ""],

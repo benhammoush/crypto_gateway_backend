@@ -24,7 +24,6 @@ jobs:
           node-version: 24
       - name: Read selected dev metadata without deployment or SQL
         env:
-          DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
           PAYMENTS_ENABLED: ${{ vars.PAYMENTS_ENABLED }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}

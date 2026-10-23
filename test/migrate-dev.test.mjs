@@ -30,7 +30,6 @@ function environment() {
     GITHUB_SHA: "a".repeat(40),
     EXPECTED_SOURCE_SHA: "a".repeat(40),
     CONFIRM_FIRST_DEV_MIGRATION: "true",
-    DEPLOY_ENABLED: "false",
     PAYMENTS_ENABLED: "false",
     CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
     D1_DATABASE_ID: "11111111-1111-4111-8111-111111111111",
@@ -62,36 +61,42 @@ function after() {
   };
 }
 
-it("applies exactly once between exact-state inspections, without attesting or activating", async () => {
-  const order = [];
-  const inspect = vi
-    .fn()
-    .mockImplementationOnce(async () => {
-      order.push("before");
-      return before();
-    })
-    .mockImplementationOnce(async () => {
-      order.push("after");
-      return after();
+it.each([undefined, "false", "true"])(
+  "ignores obsolete deploy flag %s and applies once between exact-state inspections",
+  async (enabled) => {
+    const order = [];
+    const inspect = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        order.push("before");
+        return before();
+      })
+      .mockImplementationOnce(async () => {
+        order.push("after");
+        return after();
+      });
+    const execute = vi.fn(async () => {
+      order.push("apply-once");
+      return true;
     });
-  const execute = vi.fn(async () => {
-    order.push("apply-once");
-    return true;
-  });
-  const result = await migrateDev(environment(), { inspect, execute });
-  expect(order).toEqual(["before", "apply-once", "after"]);
-  expect(result).toMatchObject({
-    migration: APPROVED_MIGRATION,
-    commandCompleted: true,
-    definitionsAndRecordsVerified: true,
-    expectedMigrationSetDigest: APPROVED_DIGEST,
-    schemaAttestationRecorded: false,
-  });
-  expect(JSON.stringify(result)).not.toContain("synthetic-write-secret");
-  expect(execute).toHaveBeenCalledOnce();
-  expect(inspect).toHaveBeenCalledTimes(2);
-  expect(migrationDigest()).toBe(APPROVED_DIGEST);
-});
+    const result = await migrateDev(
+      { ...environment(), DEPLOY_ENABLED: enabled },
+      { inspect, execute },
+    );
+    expect(order).toEqual(["before", "apply-once", "after"]);
+    expect(result).toMatchObject({
+      migration: APPROVED_MIGRATION,
+      commandCompleted: true,
+      definitionsAndRecordsVerified: true,
+      expectedMigrationSetDigest: APPROVED_DIGEST,
+      schemaAttestationRecorded: false,
+    });
+    expect(JSON.stringify(result)).not.toContain("synthetic-write-secret");
+    expect(execute).toHaveBeenCalledOnce();
+    expect(inspect).toHaveBeenCalledTimes(2);
+    expect(migrationDigest()).toBe(APPROVED_DIGEST);
+  },
+);
 
 it("rejects unsafe source, reruns, missing confirmation, activation and shared bindings before inspection or execution", async () => {
   for (const [key, value] of [
@@ -102,8 +107,6 @@ it("rejects unsafe source, reruns, missing confirmation, activation and shared b
     ["EXPECTED_SOURCE_SHA", "main"],
     ["EXPECTED_SOURCE_SHA", "b".repeat(40)],
     ["CONFIRM_FIRST_DEV_MIGRATION", "false"],
-    ["DEPLOY_ENABLED", "true"],
-    ["DEPLOY_ENABLED", ""],
     ["PAYMENTS_ENABLED", "true"],
     ["CLOUDFLARE_ACCOUNT_ID", "other"],
     ["D1_DATABASE_ID", "other"],

@@ -12,7 +12,6 @@ function environment() {
     GITHUB_EVENT_NAME: "workflow_dispatch",
     GITHUB_REF: "refs/heads/main",
     GITHUB_SHA: "a".repeat(40),
-    DEPLOY_ENABLED: "false",
     PAYMENTS_ENABLED: "false",
     CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
     D1_DATABASE_ID: "11111111-1111-4111-8111-111111111111",
@@ -43,19 +42,22 @@ function provider(env) {
   });
 }
 
-it("reads only exact dev metadata and emits no provider payload or secret", async () => {
-  const env = environment();
-  const fetcher = provider(env);
-  const timeout = vi.spyOn(AbortSignal, "timeout");
-  expect(await verifyDev(env, fetcher)).toEqual({
-    sourceSha: env.GITHUB_SHA,
-    databaseIdentityMatched: true,
-    workerDeploymentListingReadable: true,
-    deploymentEntriesObserved: 0,
-  });
-  expect(fetcher).toHaveBeenCalledTimes(2);
-  expect(timeout).toHaveBeenCalledWith(15_000);
-});
+it.each([undefined, "false", "true"])(
+  "ignores obsolete deploy flag %s and reads only exact dev metadata",
+  async (enabled) => {
+    const env = { ...environment(), DEPLOY_ENABLED: enabled };
+    const fetcher = provider(env);
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    expect(await verifyDev(env, fetcher)).toEqual({
+      sourceSha: env.GITHUB_SHA,
+      databaseIdentityMatched: true,
+      workerDeploymentListingReadable: true,
+      deploymentEntriesObserved: 0,
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(timeout).toHaveBeenCalledWith(15_000);
+  },
+);
 
 it("cancels oversized response streams", async () => {
   let cancelled = false;
@@ -96,7 +98,6 @@ it("rejects nonmanual/nonmain, activation and malformed identities before networ
     ["GITHUB_EVENT_NAME", "push"],
     ["GITHUB_REF", "refs/heads/feature"],
     ["GITHUB_SHA", "main"],
-    ["DEPLOY_ENABLED", "true"],
     ["PAYMENTS_ENABLED", "true"],
     ["CLOUDFLARE_ACCOUNT_ID", "../production"],
     ["D1_DATABASE_ID", "../production"],

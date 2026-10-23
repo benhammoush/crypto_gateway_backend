@@ -107,8 +107,8 @@ export async function migrateDev(
     "EXPLICIT_DEV_MIGRATION_CONFIRMATION_REQUIRED",
   );
   requireValue(
-    env.DEPLOY_ENABLED === "false" && env.PAYMENTS_ENABLED === "false",
-    "ACTIVATION_FLAGS_MUST_REMAIN_FALSE",
+    env.PAYMENTS_ENABLED === "false",
+    "PAYMENTS_MUST_REMAIN_DISABLED",
   );
   const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
   requireValue(

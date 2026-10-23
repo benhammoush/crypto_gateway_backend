@@ -48,10 +48,18 @@ The owner must compare the selected production SHA and compatible frontend revis
 
 ## Read-only dev access verification
 
+Dev maintenance no longer reads `DEPLOY_ENABLED`: it cannot pause automatic
+delivery. Before bootstrap/migration maintenance, freeze main pushes/merges,
+manual CI dispatches and workflow reruns, then let queued/active deliveries finish.
+Never cancel an active mutation. Mutating maintenance retains the shared dev lock,
+fresh exact-main dispatch, explicit operation confirmation, payments-disabled
+configuration and first-use state checks; a live initialized target still fails
+bootstrap/migration preflight. Production enablement is unchanged.
+
 After its reviewed source is merged, the separate **Verify dev access (read-only)**
 workflow may be manually dispatched from main under separate execution approval.
 It uses only the dev environment, with deployment tracking disabled, and requires
-deployment/payment flags to remain unset or false. It makes bounded authenticated
+the payment flag to remain unset or false. It makes bounded authenticated
 GET requests for the configured D1 database metadata and the named dev Worker's
 deployment listing. It never deploys, applies migrations, runs SQL, reads payment
 rows, fetches runtime secret values or changes provider configuration. No extra
@@ -106,7 +114,7 @@ fresh deployment still requires the applicable separate authorization and gates.
 ### Separate read-only dev schema inspection
 
 The separately reviewed **Inspect dev schema (read-only)** workflow is manual,
-main-only and dev-only, with deployment tracking disabled and activation flags
+main-only and dev-only, with deployment tracking disabled and the payment flag
 required unset/false. It does not depend on a Worker existing. After matching the
 configured dev D1 metadata, it uses the D1 query API with only two fixed SELECTs:
 the SQLite schema catalog and, only when it is a table, migration names from
@@ -137,7 +145,7 @@ SHA and explicit first-dev confirmation, rejects job reruns, shares the dev
 concurrency group, and repeats source quality checks before accessing credentials.
 
 Required dev inputs include distinct `D1_DATABASE_ID`/`OTHER_D1_DATABASE_ID` values,
-the intended account, both deployment/payment flags explicitly false and the
+the intended account, `PAYMENTS_ENABLED` explicitly false and the
 separate `CLOUDFLARE_D1_MIGRATION_TOKEN` environment secret. Do not replace or broaden
 the existing read-only inspection token. The migration credential must permit D1
 metadata/SELECT reads and schema writes on the intended account; no Workers write
@@ -180,8 +188,8 @@ It accepts only a fresh attempt-1 manual dispatch from main with the exact revie
 current-main `sha`, the independently verified existing empty Worker's immutable
 `worker_id`, and `confirm_first_dev_deployment:true`. Quality/advisory checks must
 pass first, current main is rechecked after the shared backend-dev concurrency
-gate, and both GitHub `DEPLOY_ENABLED` and `PAYMENTS_ENABLED` must remain explicitly
-false. Hosted runtime `PAYMENTS_ENABLED` must also be false. The dedicated
+gate, and GitHub `PAYMENTS_ENABLED` must remain explicitly false. Hosted runtime
+`PAYMENTS_ENABLED` must also be false. The dedicated
 confirmation authorizes only this first dev code deployment, not ordinary delivery
 activation. Production and non-main/automatic/rerun execution are rejected.
 

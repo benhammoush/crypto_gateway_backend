@@ -48,7 +48,6 @@ jobs:
         env:
           EXPECTED_SOURCE_SHA: ${{ inputs.sha }}
           CONFIRM_FIRST_DEV_MIGRATION: ${{ inputs.confirm_first_dev_migration }}
-          DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
           PAYMENTS_ENABLED: ${{ vars.PAYMENTS_ENABLED }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
