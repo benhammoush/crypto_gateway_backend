@@ -65,6 +65,15 @@ separately authorized setup step. Never enable delivery merely to run this check
 
 ### Read-only dev delivery diagnosis
 
+Normal delivery also retains a `failure` classification in the existing
+`delivery-record.json` when Wrangler's subprocess fails. It records a fixed stage,
+exit/process classification, allowlisted Cloudflare codes and known-error booleans;
+unknown codes and all raw output, command arguments, paths and credentials are
+omitted. Unrecognized errors remain unclassified. The existing checkpoint status
+and prior identities are unchanged: this evidence never proves that mutation did
+not occur. Provider reconciliation is still required before recovery. No automatic
+retry or permission change is introduced.
+
 After a failed delivery, reconcile the retained checkpoint with provider state
 before considering another attempt. Once merged, the manual
 `diagnose-dev-delivery.yml` workflow can be dispatched on `main` to inspect the
