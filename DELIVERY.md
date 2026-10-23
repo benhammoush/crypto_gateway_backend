@@ -74,6 +74,31 @@ and prior identities are unchanged: this evidence never proves that mutation did
 not occur. Provider reconciliation is still required before recovery. No automatic
 retry or permission change is introduced.
 
+For the current dev investigation, a failed Wrangler subprocess additionally
+retains `encryptedError` in that same record. The complete captured stdout,
+stderr and error message are encrypted with a fresh AES-256-GCM key, wrapped
+using RSA-OAEP-SHA256 to the public recipient in
+`scripts/wrangler-evidence-public-key.json`. Source SHA, environment, run identity
+and recipient are authenticated. Wrangler's existing captured-output size limit
+still applies; an output-buffer failure may leave incomplete streams.
+
+Only the public recipient is committed. Its non-exportable private key remains
+in the operator's Windows user key store, never in GitHub secrets, runner files,
+artifacts, Git or chat. Capture is dev-only and does not serialize the process
+environment or command options. Ciphertext is not logged; it is uploaded only
+inside the existing retained evidence. Encryption/persistence failure fails closed
+without a plaintext fallback, retry or checkpoint truncation. A merge still
+triggers the ordinary automatic dev attempt; this feature does not dispatch one.
+
+Download the evidence through the owning Actions run and inspect it only on the
+recipient machine. Keep plaintext in memory and expose only verified non-secret
+findings, not decrypted provider output, token values or command lines. Do not
+upload decrypted evidence to GitHub or paste it into chat. Keep the private key
+until the investigation and evidence-retention period are resolved; losing it
+makes the ciphertext unreadable. Remove the temporary capture/public recipient
+through a reviewed follow-up after diagnosis; do not revoke provider credentials
+or retry delivery merely to investigate it.
+
 After a failed delivery, reconcile the retained checkpoint with provider state
 before considering another attempt. Once merged, the manual
 `diagnose-dev-delivery.yml` workflow can be dispatched on `main` to inspect the
