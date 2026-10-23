@@ -19,7 +19,7 @@ permissions:
   contents: read
 jobs:
   quality:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -44,11 +44,11 @@ jobs:
       - run: npm audit --audit-level=high
   bootstrap:
     needs: quality
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: dev
     concurrency:
-      group: crypto-gateway-backend-dev
+      group: deploy-${{ github.repository_owner }}-${{ github.event.repository.name }}-dev
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

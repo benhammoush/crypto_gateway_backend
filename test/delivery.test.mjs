@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 // Delivery tooling is JavaScript executed directly by Node in CI.
 import { deliveryConfig, migrationDigest } from "../scripts/check-delivery.mjs";
 import { readFileSync } from "node:fs";
+import { parse } from "yaml";
 
 /** Create public synthetic configuration without provider access. */
 function fixture() {
@@ -50,6 +51,23 @@ function fixture() {
 }
 
 describe("manual production delivery guard", () => {
+  it("serializes bootstrap and schema mutation with the shared dev deployment lock", () => {
+    const ci = parse(readFileSync(".github/workflows/ci.yml", "utf8"));
+    expect(ci.jobs.deploy_dev.with.environment).toBe("dev");
+    expect(ci.jobs.deploy_dev.with.lock_scope).toBeUndefined();
+    const group =
+      "deploy-${{ github.repository_owner }}-${{ github.event.repository.name }}-dev";
+    for (const [file, job] of [
+      ["bootstrap-dev.yml", "bootstrap"],
+      ["migrate-dev.yml", "migrate"],
+    ]) {
+      const workflow = parse(readFileSync(`.github/workflows/${file}`, "utf8"));
+      expect(workflow.jobs[job].concurrency).toEqual({
+        group,
+        "cancel-in-progress": false,
+      });
+    }
+  });
   it("accepts explicit isolated dev configuration without querying or mutating providers", () => {
     const { env, config } = fixture();
     expect(deliveryConfig(env, migrationDigest())).toEqual(config);
@@ -98,10 +116,17 @@ describe("manual production delivery guard", () => {
   });
   it("gates deployment behind existing checks and never applies hosted migrations", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
-    expect(workflow).toContain("needs: [source, quality]");
-    expect(workflow).toContain("environment: ${{ inputs.target || 'dev' }}");
-    expect(workflow).toContain("cancel-in-progress: false");
-    expect(workflow).toContain("git merge-base --is-ancestor");
+    expect(workflow).toContain("needs: verify");
+    expect(workflow).toContain("environment: dev");
+    expect(workflow).toMatch(
+      /ci-cd-workflows\/\.github\/workflows\/deploy-worker.yml@[a-f0-9]{40}/,
+    );
+    const production = readFileSync(
+      ".github/workflows/deploy-production.yml",
+      "utf8",
+    );
+    expect(production).toContain("needs: verify_release");
+    expect(production).toContain("environment: production");
     expect(workflow).not.toContain("migrations apply");
     expect(workflow).not.toContain("VERCEL_DEV_VERIFICATION_TOKEN");
   });

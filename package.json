@@ -7,6 +7,7 @@
     "node": "24.x"
   },
   "scripts": {
+    "ci:quality": "npm run check && npm audit --audit-level=high",
     "dev": "wrangler dev --local --port 8787 --test-scheduled",
     "dev:scheduler": "node scripts/local-scheduler.mjs",
     "db:local": "wrangler d1 migrations apply DB --local",
@@ -29,6 +30,7 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "8.71.2",
     "vitest": "^5.0.3",
-    "wrangler": "4.149.0"
+    "wrangler": "4.149.0",
+    "yaml": "2.9.1"
   }
 }

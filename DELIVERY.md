@@ -1,5 +1,24 @@
 # Delivery contract
 
+## Versioned CI/CD entry points
+
+The [shared contract](https://github.com/benhammoush/ci-cd-workflows/blob/main/docs/contract.md)
+is pinned in `.github/ci-cd.json`. CI checks PRs/main and delivers only successful
+exact main commits to enabled dev. Separate manual `deploy-production.yml` selects
+a full merged `sha`, requires retained successful dev evidence, verifies the
+candidate and waits for native approval. CI dispatch is the exact-SHA dev recovery
+path. These replace older combined target-selector invocations, not isolation,
+schema readback or payment/recovery acceptance requirements.
+
+All Ubuntu jobs use `ubuntu-24.04`. Deployment consumes the checked dry-run bundle
+with `--no-bundle`, retaining the managed configuration and migration-digest guards.
+Provider version tag/message bind active immutable identity to source/run/artifact,
+followed by existing health/readiness checks. Records retain the previous version;
+failed/uncertain records are not promotable and mutations are not retried. Existing
+bootstrap, inspection and approved migration workflows remain separate. Disabled
+targets stay disabled; no payment, migration, credential change or provider
+deployment occurs as part of this source migration.
+
 ## Targets
 
 Local → dev → production; no staging. Production remains Devnet-only. The existing CI now includes disabled-by-default hosted delivery jobs, not provisioning or hosted acceptance. Provisioning, remote settings, merges and deployment require explicit authorization.
