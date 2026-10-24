@@ -85,7 +85,7 @@ A live initialized target still fails first-use bootstrap/migration preflight.
 Production dispatch and approval remain separate.
 
 The retired **Verify dev access (read-only)** workflow previously ran from main.
-The retained CLI still needs separate execution approval.
+The retained `scripts/verify-dev.mjs` CLI still needs separate execution approval.
 It uses only the dev environment, with deployment tracking disabled, and requires
 the payment flag to remain unset or false. It makes bounded authenticated
 GET requests for the configured D1 database metadata and the named dev Worker's
