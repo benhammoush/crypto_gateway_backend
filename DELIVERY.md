@@ -63,7 +63,7 @@ An authorized human merge triggers the main-push dev pipeline and hosted post-de
 
 The owner must compare the selected production SHA and compatible frontend revision with the recorded dev acceptance and recovery evidence before granting native production approval. The workflow checks source format, main ancestry and target configuration; it does not query dev acceptance or validate a machine-readable acceptance attestation. This is deliberately an owner-reviewed promotion prerequisite, not a claim of automatic acceptance enforcement or a request for another promotion service.
 
-## Read-only dev access verification
+## Retired dev maintenance workflows and retained CLI tools
 
 The `verify-dev.yml`, `inspect-dev-schema.yml`, `migrate-dev.yml`,
 `bootstrap-dev.yml` and `diagnose-dev-delivery.yml` entry points are retired. The following legacy tool contracts
@@ -76,12 +76,13 @@ authorized `scripts/inspect-dev-schema.mjs` CLI. Any future migration or bootstr
 needs a fresh approved scope, not reuse of first-dev automation on initialized data.
 
 Dev maintenance no longer reads `DEPLOY_ENABLED`: it cannot pause automatic
-delivery. Before bootstrap/migration maintenance, freeze main pushes/merges,
-manual CI dispatches and workflow reruns, then let queued/active deliveries finish.
-Never cancel an active mutation. Mutating maintenance retains the shared dev lock,
-fresh exact-main dispatch, explicit operation confirmation, payments-disabled
-configuration and first-use state checks; a live initialized target still fails
-bootstrap/migration preflight. Production dispatch and approval remain separate.
+delivery. Any newly approved CLI maintenance procedure must first freeze main
+pushes/merges, manual CI dispatches and workflow reruns, then let queued/active
+deliveries finish. Never cancel an active mutation. The retired workflows' GitHub
+locks and dispatch guards do not protect standalone CLI execution; a new approved
+procedure must provide equivalent serialization and source/confirmation guards.
+A live initialized target still fails first-use bootstrap/migration preflight.
+Production dispatch and approval remain separate.
 
 The retired **Verify dev access (read-only)** workflow previously ran from main.
 The retained CLI still needs separate execution approval.
@@ -139,11 +140,13 @@ No upload, deployment, schema SQL, payment request or secret change occurs. The
 diagnostic neither retries a failed delivery nor authorizes a later recovery. A
 fresh deployment still requires the applicable separate authorization and gates.
 
-### Separate read-only dev schema inspection
+### Historical contract: read-only dev schema inspection
 
-The separately reviewed **Inspect dev schema (read-only)** workflow is manual,
+The retired **Inspect dev schema (read-only)** workflow was manual,
 main-only and dev-only, with deployment tracking disabled and the payment flag
-required unset/false. It does not depend on a Worker existing. After matching the
+required unset/false. This section records its historical safety contract, not an
+available dispatch procedure. The retained `scripts/inspect-dev-schema.mjs` CLI
+requires separate execution approval. It does not depend on a Worker existing. After matching the
 configured dev D1 metadata, it uses the D1 query API with only two fixed SELECTs:
 the SQLite schema catalog and, only when it is a table, migration names from
 `d1_migrations`. It accepts no SQL inputs and never queries payment/application rows.
@@ -160,17 +163,18 @@ repair. Output contains fixed classifications/counts and recognized migration na
 never raw SQL, provider payloads, credentials or application rows. A successful
 inventory can still report absent schema or incomplete records; it does not set
 `D1_SCHEMA_DIGEST`, authorize migrations or certify readiness. Operator review and
-separate execution approval remain mandatory before any live dispatch or mutation.
+separate execution approval remain mandatory before any live CLI operation or mutation.
 
-### First dev migration — separate mutation approval
+### Historical contract: first dev migration
 
-The **Apply first dev schema (manual)** workflow is not an inspection workflow.
-It may mutate only the configured dev D1 schema and Wrangler migration records by
-applying the reviewed `0001_payments.sql`. Owner review/merge and separate execution
-approval are required. It has no production target, Worker deployment or payment
-activation. The workflow runs from main, requires its exact reviewed current-main
-SHA and explicit first-dev confirmation, rejects job reruns, shares the dev
-concurrency group, and repeats source quality checks before accessing credentials.
+The retired **Apply first dev schema (manual)** workflow was a mutation workflow,
+not an inspection. It applied only the reviewed `0001_payments.sql` to the configured
+dev D1 schema and Wrangler migration records, without a production target, Worker
+deployment or payment activation. The remaining details record that historical
+safety contract; they are not migration dispatch steps. The retained
+`scripts/migrate-dev.mjs` CLI is not an approved operational replacement. Any use
+needs a fresh owner-reviewed procedure covering exact source, quality checks,
+explicit confirmation, serialization and credential access before execution.
 
 Required dev inputs include distinct `D1_DATABASE_ID`/`OTHER_D1_DATABASE_ID` values,
 the intended account, `PAYMENTS_ENABLED` explicitly false and the
@@ -198,26 +202,24 @@ job. The command may have created the tracking table or applied some/all work be
 failure. Do not rerun, reset, down-migrate or repair automatically: diagnose and obtain
 a fresh reviewed recovery scope first. Raw Wrangler/provider output is not printed.
 The sanitized summary does not set `D1_SCHEMA_DIGEST`; operator attestation and later
-Worker bootstrap/deployment remain separate checkpoints. This workflow must not be
-used for future migrations without a new reviewed scope and implementation.
+Worker bootstrap/deployment remain separate checkpoints. The retired workflow is
+unavailable; future migrations need a new reviewed scope and implementation.
 
-### First dev Worker code bootstrap (separate manual approval)
+### Historical contract: first dev Worker code bootstrap
 
-The **Bootstrap first dev Worker (manual)** workflow is the only first-code
+The retired **Bootstrap first dev Worker (manual)** workflow provided a first-code
 exception to the normal delivery job's successful legacy deployment-history
-listing prerequisite. It never treats a legacy 404/403 or other failed read as
-empty history. Normal delivery, read-only verification and production gates are
-unchanged. Source review/merge and a separate explicit execution approval are
-required; adding this workflow does not authorize dispatch or deployment.
+listing prerequisite. It never treated a legacy 404/403 or other failed read as
+empty history. Normal delivery and production gates are unchanged. This section
+preserves its historical safety contract, not a bootstrap dispatch procedure.
+The retained `scripts/bootstrap-dev.mjs` CLI needs a fresh separately approved
+operational scope and is not authorized by workflow retirement.
 
-It accepts only a fresh attempt-1 manual dispatch from main with the exact reviewed
-current-main `sha`, the independently verified existing empty Worker's immutable
-`worker_id`, and `confirm_first_dev_deployment:true`. Quality/advisory checks must
-pass first, current main is rechecked after the shared backend-dev concurrency
-gate, and GitHub `PAYMENTS_ENABLED` must remain explicitly false. Hosted runtime
-`PAYMENTS_ENABLED` must also be false. The dedicated
-confirmation authorizes only this first dev code deployment, not ordinary delivery
-activation. Production and non-main/automatic/rerun execution are rejected.
+Any replacement procedure must establish the exact reviewed current-main source,
+independently verified existing empty Worker identity, passing quality checks,
+explicit first-code confirmation and exclusive target access. GitHub and hosted
+runtime `PAYMENTS_ENABLED` must remain explicitly false. These prerequisites do not
+authorize ordinary delivery activation, production or reuse on an initialized target.
 
 Keep the inspection `CLOUDFLARE_API_TOKEN` unchanged. The separately approved dev
 environment secret `CLOUDFLARE_WORKER_BOOTSTRAP_TOKEN` needs Workers Scripts Write
