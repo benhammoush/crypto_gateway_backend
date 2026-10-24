@@ -127,6 +127,28 @@ it("rejects malformed TSDoc and duplicated TypeScript types", async () => {
   ).toContain("jsdoc/no-types");
 });
 
+it("parses typed TSX before applying documentation rules", async () => {
+  const filePath = "src/documentation-fixture.tsx";
+  const [result] = await eslint.lintText(
+    header +
+      "/** Render fixture. */ const Component = (props: { label: string }) => <div>{props.label}</div>;",
+    { filePath },
+  );
+  expect(result.fatalErrorCount).toBe(0);
+  expect(
+    result.messages.filter((message) =>
+      /^(jsdoc\/|tsdoc\/)/.test(message.ruleId ?? ""),
+    ),
+  ).toEqual([]);
+  expect(
+    await errors(
+      header +
+        "const Component = (props: { label: string }) => <div>{props.label}</div>;",
+      filePath,
+    ),
+  ).toContain("jsdoc/require-jsdoc");
+});
+
 it("requires JavaScript module and named-helper documentation", async () => {
   expect(
     await errors(
