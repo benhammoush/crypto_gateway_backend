@@ -313,16 +313,8 @@ it("never prints raw network errors or secrets through the CLI", () => {
   );
 });
 
-it("uses a separate manual main-only dev workflow without mutation commands or secret-bearing installs", () => {
-  const workflow = readFileSync(
-    ".github/workflows/inspect-dev-schema.yml",
-    "utf8",
-  );
-  expect(workflow).toContain("github.ref == 'refs/heads/main'");
-  expect(workflow).toContain("name: dev\n      deployment: false");
-  expect(workflow).toContain("contents: read");
-  expect(workflow).toContain("persist-credentials: false");
-  expect(workflow).not.toMatch(
-    /npm ci|wrangler|production|workflow_call|pull_request|push:/,
-  );
+it("retires the hosted schema-inspection entry point without removing the CLI", () => {
+  expect(() =>
+    readFileSync(".github/workflows/inspect-dev-schema.yml"),
+  ).toThrow(expect.objectContaining({ code: "ENOENT" }));
 });

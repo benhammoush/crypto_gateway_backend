@@ -2,7 +2,6 @@ import { expect, it, vi } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, URL } from "node:url";
-import { parse } from "yaml";
 import { diagnoseDev } from "../scripts/diagnose-dev-delivery.mjs";
 import { migrationDigest } from "../scripts/check-delivery.mjs";
 
@@ -294,32 +293,10 @@ it("fails safely from the CLI before credential access and never dumps exception
   );
 });
 
-it("uses one manual main-only, dev-only read-only job without affecting CI or existing guards", () => {
-  const workflow = parse(
-    readFileSync(".github/workflows/diagnose-dev-delivery.yml", "utf8"),
-  );
-  expect(Object.keys(workflow.on)).toEqual(["workflow_dispatch"]);
-  expect(workflow.permissions).toEqual({ contents: "read" });
-  const job = workflow.jobs.diagnose;
-  expect(job.if).toBe(
-    "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
-  );
-  expect(job.environment).toEqual({ name: "dev", deployment: false });
-  expect(job["runs-on"]).toBe("ubuntu-24.04");
-  expect(job.concurrency["cancel-in-progress"]).toBe(false);
-  expect(job.concurrency.group).toBe(
-    "deploy-${{ github.repository_owner }}-${{ github.event.repository.name }}-dev",
-  );
-  const privileged = job.steps.filter((step) => step.env?.CLOUDFLARE_API_TOKEN);
-  expect(privileged).toHaveLength(1);
-  expect(privileged[0].run).toBe("node scripts/diagnose-dev-delivery.mjs");
-  expect(
-    job.steps.filter((step) => step.run?.includes("npm ci"))[0].env,
-  ).toBeUndefined();
-  expect(
-    job.steps.filter((step) => step.run?.includes("npm run build"))[0].env,
-  ).toBeUndefined();
-  expect(job.steps[0].with["persist-credentials"]).toBe(false);
+it("retires the hosted diagnostic entry point while preserving CLI read-only guards", () => {
+  expect(() =>
+    readFileSync(".github/workflows/diagnose-dev-delivery.yml"),
+  ).toThrow(expect.objectContaining({ code: "ENOENT" }));
   const source = readFileSync("scripts/diagnose-dev-delivery.mjs", "utf8");
   expect(source).not.toMatch(/method: "(?:POST|PUT|PATCH|DELETE)"/);
   expect(readFileSync("scripts/verify-dev.mjs", "utf8")).toContain(

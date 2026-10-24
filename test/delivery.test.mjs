@@ -51,22 +51,10 @@ function fixture() {
 }
 
 describe("manual production delivery guard", () => {
-  it("serializes bootstrap and schema mutation with the shared dev deployment lock", () => {
+  it("uses the shared dev deployment lock without an override", () => {
     const ci = parse(readFileSync(".github/workflows/ci.yml", "utf8"));
     expect(ci.jobs.deploy_dev.with.environment).toBe("dev");
     expect(ci.jobs.deploy_dev.with.lock_scope).toBeUndefined();
-    const group =
-      "deploy-${{ github.repository_owner }}-${{ github.event.repository.name }}-dev";
-    for (const [file, job] of [
-      ["bootstrap-dev.yml", "bootstrap"],
-      ["migrate-dev.yml", "migrate"],
-    ]) {
-      const workflow = parse(readFileSync(`.github/workflows/${file}`, "utf8"));
-      expect(workflow.jobs[job].concurrency).toEqual({
-        group,
-        "cancel-in-progress": false,
-      });
-    }
   });
   it("accepts explicit isolated dev configuration without querying or mutating providers", () => {
     const { env, config } = fixture();

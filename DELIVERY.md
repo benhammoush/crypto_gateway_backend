@@ -2,12 +2,27 @@
 
 ## Versioned CI/CD entry points
 
-Automation 3.0 removes production deployment opt-ins; dev remains automatic.
-The verified immutable v3.0.0 release is pinned below. Delete obsolete live
-deployment flags only after this consumer adoption is merged and verified.
+The parent-scoped Miniflare override keeps Undici on patched 7.30.1 while retaining
+the reviewed Worker toolchain. Remove it when Miniflare's dependency declaration
+naturally resolves to a patched compatible release, not by forcing a major upgrade.
+
+Automation 4.0 retains flag-free delivery and adds consistent job names and weekly
+vulnerability audits. The published immutable shared revision is pinned in
+`.github/ci-cd.json`; source adoption does not change live settings.
+
+Prepared job naming replaces the old verification aliases with standalone `Verify`.
+Existing required-check settings below remain live until the owner approves the
+[coordinated check-name migration](https://github.com/benhammoush/ci-cd-workflows/blob/main/docs/contract.md#canonical-job-names-and-required-check-migration).
+Do not merge the naming change under unchanged protections. Workflow comments are
+limited to two header lines; this runbook and the shared contract own the detail.
+
+The `.github/workflows/weekly-vuln-audit.yml` caller uses the same published shared
+SHA as release workflows and runs weekly or manually after adoption on main.
+It checks vulnerabilities without updating dependencies or deploying. See the
+[shared audit contract](https://github.com/benhammoush/ci-cd-workflows/blob/64b5e00a3d2895a8cba05b040f0d5a0415613d9e/docs/contract.md#weekly-vulnerability-audits).
 
 The [shared contract](https://github.com/benhammoush/ci-cd-workflows/blob/main/docs/contract.md)
-v3.0.0 is pinned in `.github/ci-cd.json`. The Worker profile does not install
+v4.0.0 is pinned in `.github/ci-cd.json`. The Worker profile does not install
 browsers. CI checks PRs/main and delivers only successful
 exact main commits to dev without a deployment-enable switch. Separate manual `deploy-production.yml` selects
 a full merged `sha`, requires retained successful dev evidence, verifies the
@@ -20,7 +35,7 @@ with `--no-bundle`, retaining the managed configuration and migration-digest gua
 Provider version tag/message bind active immutable identity to source/run/artifact,
 followed by existing health/readiness checks. Records retain the previous version;
 failed/uncertain records are not promotable and mutations are not retried. Existing
-bootstrap, inspection and approved migration workflows remain separate. Disabled
+first-use bootstrap, migration and legacy inspection workflow entry points are retired; their tested CLI tools remain available only under a separately approved operational scope. Disabled
 targets stay disabled; no payment, migration, credential change or provider
 deployment occurs as part of this source migration.
 
@@ -32,7 +47,7 @@ Each hosted target needs independent Worker, D1, merchant credentials, checkout 
 
 ## Activation prerequisites
 
-1. Configure protected main with strict required `quality` (GitHub Actions) and `CodeRabbit` checks bound to their respective apps, administrator enforcement, no force push/deletion, resolved conversations, at least one approving review, stale-review dismissal and independent last-push approval. CodeRabbit must finish reviewing the current head and submit an actual approving review; a successful status alone is insufficient. Verify its integration and approval behavior before relying on the gate.
+1. Configure protected main with strict required `Verify` (GitHub Actions) and `CodeRabbit` checks bound to their respective apps, replacing prior aliases through the coordinated migration. Retain administrator enforcement, no force push/deletion, resolved conversations, at least one approving review, stale-review dismissal and independent last-push approval. CodeRabbit must finish reviewing the current head and submit an actual approving review; a successful status alone is insufficient. Verify its integration and approval behavior before relying on the gate.
 2. Configure dev/production native environments restricted to main. Production requires enforceable explicit approval with admin bypass disabled. If unsupported, keep production disabled pending an approved alternative.
 3. Verify provider isolation, scoped credentials and origin ownership. Disable Vercel Git auto-deploy; CI must own deployment. No hosted PR previews or cross-repository dispatch tokens.
 4. Complete dev configuration before merging: delivery ignores `DEPLOY_ENABLED`, including absent/false values. Hold production by not dispatching it until readiness and separate execution authorization. The owning CI checks the exact selected merged source, then uses the native target environment. Main pushes select dev; manual dev redeployment/production dispatch run from main with an exact `sha`. Serialize per target without cancelling active operations. Production requires a new dispatch and native approval; no dev-verification credential or custom release coordinator is used.
@@ -44,11 +59,21 @@ Each hosted target needs independent Worker, D1, merchant credentials, checkout 
 
 The owner assigns a bounded task and authorizes its endpoint; no backlog pickup is automatic. The assistant owns implementation, affected checks, authorized PR publication and valid CI/review repairs, including resuming a paused CodeRabbit review. `.coderabbit.yaml` enables real approval after review and prevents author-triggered approval/resolve overrides. The owner decides when to merge after current-head checks and approval pass. No automatic merger, merge PAT or separate orchestration service is required.
 
-An authorized human merge triggers the main-push dev pipeline and hosted post-deployment verification after successful verification, without a deployment-enable flag. Check the exact source/provider identity and affected dev behavior before calling it verified; green PR CI is not deployment or payment acceptance. Private-dev access and first-dev provisioning retain their separate prerequisites below. Production promotion remains a manual dispatch of the exact accepted dev source pair with native approval and recovery evidence; no new credentials are granted by this process.
+An authorized human merge triggers the main-push dev pipeline and hosted post-deployment verification after successful verification, without a deployment-enable flag. Check the exact source/provider identity and affected dev behavior before calling it verified; green PR CI is not deployment or payment acceptance. Retained CLI access/provisioning tools require a separate approved operational scope, not dispatch of a retired workflow. Production promotion remains a manual dispatch of the exact accepted dev source pair with native approval and recovery evidence; no new credentials are granted by this process.
 
 The owner must compare the selected production SHA and compatible frontend revision with the recorded dev acceptance and recovery evidence before granting native production approval. The workflow checks source format, main ancestry and target configuration; it does not query dev acceptance or validate a machine-readable acceptance attestation. This is deliberately an owner-reviewed promotion prerequisite, not a claim of automatic acceptance enforcement or a request for another promotion service.
 
 ## Read-only dev access verification
+
+The `verify-dev.yml`, `inspect-dev-schema.yml`, `migrate-dev.yml`,
+`bootstrap-dev.yml` and `diagnose-dev-delivery.yml` entry points are retired. The following legacy tool contracts
+are retained for their tested CLI implementations, not as instructions to dispatch
+those workflows. Removal does not revoke credentials, alter provider resources or
+authorize CLI execution. The retained `scripts/diagnose-dev-delivery.mjs` CLI provides
+bounded metadata/packaging checks; it does not inspect schema definitions or
+migration records. Schema inspection remains available through the separately
+authorized `scripts/inspect-dev-schema.mjs` CLI. Any future migration or bootstrap
+needs a fresh approved scope, not reuse of first-dev automation on initialized data.
 
 Dev maintenance no longer reads `DEPLOY_ENABLED`: it cannot pause automatic
 delivery. Before bootstrap/migration maintenance, freeze main pushes/merges,
@@ -58,8 +83,8 @@ fresh exact-main dispatch, explicit operation confirmation, payments-disabled
 configuration and first-use state checks; a live initialized target still fails
 bootstrap/migration preflight. Production dispatch and approval remain separate.
 
-After its reviewed source is merged, the separate **Verify dev access (read-only)**
-workflow may be manually dispatched from main under separate execution approval.
+The retired **Verify dev access (read-only)** workflow previously ran from main.
+The retained CLI still needs separate execution approval.
 It uses only the dev environment, with deployment tracking disabled, and requires
 the payment flag to remain unset or false. It makes bounded authenticated
 GET requests for the configured D1 database metadata and the named dev Worker's
@@ -95,11 +120,12 @@ logs or chat; expose only verified non-secret findings. Removing capture does no
 authorize key deletion, credential revocation or another delivery attempt.
 
 After a failed delivery, reconcile the retained checkpoint with provider state
-before considering another attempt. Once merged, the manual
-`diagnose-dev-delivery.yml` workflow can be dispatched on `main` to inspect the
+before considering another attempt. Under separate execution approval, the retained
+`scripts/diagnose-dev-delivery.mjs` CLI can inspect the
 existing dev credential's metadata access and locally dry-run the Worker package.
 It does not require disabling an already enabled dev environment, and does not
-change the stricter bootstrap/access-verification guards.
+change the stricter bootstrap/access-verification guards. The CLI does not acquire
+a GitHub workflow lock; arrange a stable target before an authorized inspection.
 
 The diagnostic uses only fixed dev metadata GETs and a credential-free Wrangler
 dry run. Its summary contains HTTP classifications, numeric provider error codes,
@@ -175,8 +201,6 @@ The sanitized summary does not set `D1_SCHEMA_DIGEST`; operator attestation and 
 Worker bootstrap/deployment remain separate checkpoints. This workflow must not be
 used for future migrations without a new reviewed scope and implementation.
 
-## Compatible source selection
-
 ### First dev Worker code bootstrap (separate manual approval)
 
 The **Bootstrap first dev Worker (manual)** workflow is the only first-code
@@ -236,6 +260,8 @@ Zero-version checks reject a later dispatch once the first version exists. A fir
 successful bootstrap is not hosted-payment acceptance or an accepted rollback
 baseline. Owner-entered provider runtime secrets (which can create deployments),
 future delivery enablement and hosted acceptance remain separate approved steps.
+
+## Compatible source selection
 
 ### Shared manual-production setup
 
