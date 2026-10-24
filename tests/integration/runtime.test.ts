@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { readFileSync } from "node:fs";
-import { sha256 } from "../src/security";
-import { MEMO_PROGRAM, ParsedTransaction } from "../src/solana";
-import { SOL_MINT } from "../src/price";
+import { sha256 } from "../../src/security";
+import { MEMO_PROGRAM, ParsedTransaction } from "../../src/solana";
+import { SOL_MINT } from "../../src/price";
 
 let mf: Miniflare;
 let tx: ParsedTransaction | null = null;

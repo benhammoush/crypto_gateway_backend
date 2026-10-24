@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { assertDevnet } from "../src/solana";
+import { assertDevnet } from "../../src/solana";
 
 afterEach(() => vi.unstubAllGlobals());
 

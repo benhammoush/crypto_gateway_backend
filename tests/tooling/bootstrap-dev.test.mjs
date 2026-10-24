@@ -4,9 +4,12 @@ import {
   bootstrapConfig,
   bootstrapDev,
   runBootstrapCommand,
-} from "../scripts/bootstrap-dev.mjs";
-import { deliveryConfig, migrationDigest } from "../scripts/check-delivery.mjs";
-import { smokeDelivery } from "../scripts/smoke-delivery.mjs";
+} from "../../scripts/bootstrap-dev.mjs";
+import {
+  deliveryConfig,
+  migrationDigest,
+} from "../../scripts/check-delivery.mjs";
+import { smokeDelivery } from "../../scripts/smoke-delivery.mjs";
 
 const { version } = JSON.parse(readFileSync("package.json", "utf8"));
 

@@ -1,9 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
 import Ajv from "ajv/dist/2020";
 import { readFileSync } from "node:fs";
-import { config, ConfigurationError } from "../src/config";
-import worker from "../src/index";
-import { Env } from "../src/types";
+import { config, ConfigurationError } from "../../src/config";
+import worker from "../../src/index";
+import { Env } from "../../src/types";
 
 const secret = "synthetic_secret_must_never_appear_1234567890";
 const merchant = {

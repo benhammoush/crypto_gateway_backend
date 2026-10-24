@@ -7,7 +7,7 @@ import {
   MIGRATIONS_SQL,
   expectedSchema,
   inspectDevSchema,
-} from "../scripts/inspect-dev-schema.mjs";
+} from "../../scripts/inspect-dev-schema.mjs";
 const { Response, AbortSignal } = globalThis;
 afterEach(() => vi.restoreAllMocks());
 
@@ -299,7 +299,10 @@ it("cancels oversized response streams", async () => {
 });
 
 it("never prints raw network errors or secrets through the CLI", () => {
-  const module = new URL("../scripts/inspect-dev-schema.mjs", import.meta.url);
+  const module = new URL(
+    "../../scripts/inspect-dev-schema.mjs",
+    import.meta.url,
+  );
   const source = `process.argv[1] = ${JSON.stringify(fileURLToPath(module))}; globalThis.fetch = async () => { throw new Error('private-provider-payload synthetic-secret'); }; await import(${JSON.stringify(module.href)});`;
   const result = spawnSync(
     process.execPath,

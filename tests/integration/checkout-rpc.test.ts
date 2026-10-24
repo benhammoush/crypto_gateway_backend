@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { checkoutRpc } from "../src/checkout-rpc";
-import type { Payment } from "../src/types";
+import { checkoutRpc } from "../../src/checkout-rpc";
+import type { Payment } from "../../src/types";
 
 const url = "https://rpc.example.org/?api-key=server-only-fixture";
 const genesis = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
