@@ -17,8 +17,8 @@ import {
   migrationArguments,
   migrationConfig,
   runMigrationCommand,
-} from "../scripts/migrate-dev.mjs";
-import { migrationDigest } from "../scripts/check-delivery.mjs";
+} from "../../scripts/migrate-dev.mjs";
+import { migrationDigest } from "../../scripts/check-delivery.mjs";
 
 /** Synthetic scope only; the injected executor never invokes Wrangler or providers. */
 function environment() {
@@ -334,7 +334,7 @@ it("cleans up the config if process creation throws and rejects a missing runner
 });
 
 it("does not print arbitrary error details through the CLI when context is rejected", () => {
-  const module = new URL("../scripts/migrate-dev.mjs", import.meta.url);
+  const module = new URL("../../scripts/migrate-dev.mjs", import.meta.url);
   const source = `process.argv[1] = ${JSON.stringify(fileURLToPath(module))}; await import(${JSON.stringify(module.href)});`;
   const result = spawnSync(
     process.execPath,

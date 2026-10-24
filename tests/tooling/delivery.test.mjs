@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 // Delivery tooling is JavaScript executed directly by Node in CI.
-import { deliveryConfig, migrationDigest } from "../scripts/check-delivery.mjs";
+import {
+  deliveryConfig,
+  migrationDigest,
+} from "../../scripts/check-delivery.mjs";
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 

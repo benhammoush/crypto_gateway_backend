@@ -3,8 +3,8 @@ import {
   MEMO_PROGRAM,
   ParsedTransaction,
   validateTransfer,
-} from "../src/solana";
-import type { Payment } from "../src/types";
+} from "../../src/solana";
+import type { Payment } from "../../src/types";
 
 const compute = "ComputeBudget111111111111111111111111111111";
 const limit = { programId: compute, accounts: [], data: "Fj2Eoy" };

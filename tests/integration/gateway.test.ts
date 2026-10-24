@@ -10,19 +10,19 @@ import {
 } from "vitest";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { readFileSync } from "node:fs";
-import worker from "../src/index";
-import { config } from "../src/config";
-import { getPayment, retryVerification, settle } from "../src/payments";
-import { formatSol, lamportsForUsd, SOL_MINT } from "../src/price";
-import { base58Length, sha256 } from "../src/security";
+import worker from "../../src/index";
+import { config } from "../../src/config";
+import { getPayment, retryVerification, settle } from "../../src/payments";
+import { formatSol, lamportsForUsd, SOL_MINT } from "../../src/price";
+import { base58Length, sha256 } from "../../src/security";
 import {
   DEVNET_GENESIS,
   MEMO_PROGRAM,
   ParsedTransaction,
   validateTransfer,
-} from "../src/solana";
-import { Env, Payment } from "../src/types";
-import { deliverWebhooks, webhookSignature } from "../src/webhooks";
+} from "../../src/solana";
+import { Env, Payment } from "../../src/types";
+import { deliverWebhooks, webhookSignature } from "../../src/webhooks";
 import Ajv from "ajv/dist/2020";
 
 const document = JSON.parse(readFileSync("openapi.json", "utf8"));
