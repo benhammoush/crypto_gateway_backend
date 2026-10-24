@@ -50,6 +50,19 @@ it("requires a separate module overview and function description", async () => {
   ).toContain("jsdoc/require-description");
 });
 
+it("requires the TypeScript package overview to be initial and unique", async () => {
+  expect(
+    await errors(
+      "const before = 1;\n/** Fixture module.\n * @packageDocumentation\n */\nexport {};",
+    ),
+  ).toContain("jsdoc/require-file-overview");
+  expect(
+    await errors(
+      '/** First overview.\n * @packageDocumentation\n */\n/** Second overview.\n * @packageDocumentation\n */\nimport "fixture";',
+    ),
+  ).toContain("jsdoc/require-file-overview");
+});
+
 it("accepts documented contracts and exempts ordinary anonymous callbacks", async () => {
   for (const wrapper of [
     "memo",
