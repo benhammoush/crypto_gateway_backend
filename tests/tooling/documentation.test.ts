@@ -19,6 +19,10 @@ async function errors(
   filePath = "src/documentation-fixture.ts",
 ) {
   const [result] = await eslint.lintText(source, { filePath });
+  expect(result.fatalErrorCount).toBe(0);
+  expect(result.messages.filter((message) => message.ruleId === null)).toEqual(
+    [],
+  );
   return result.messages
     .filter((message) => /^(jsdoc\/|tsdoc\/)/.test(message.ruleId ?? ""))
     .map((message) => message.ruleId);
@@ -39,6 +43,13 @@ it.each([
   "const Component = React.forwardRef(() => null);",
 ])("rejects an undocumented named contract: %s", async (source) => {
   expect(await errors(header + source)).toContain("jsdoc/require-jsdoc");
+});
+
+it("rejects malformed or ignored lint fixtures instead of silently passing", async () => {
+  await expect(errors("export const broken = ;")).rejects.toThrow();
+  await expect(
+    errors("export {};", "dist/documentation-fixture.ts"),
+  ).rejects.toThrow();
 });
 
 it("requires a separate module overview and function description", async () => {
