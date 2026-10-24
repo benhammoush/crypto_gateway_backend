@@ -52,7 +52,8 @@ Checkout uses payment-scoped access rather than merchant credentials; provider
 keys stay server-side.
 
 Payment creation supports idempotency. Webhooks use at-least-once delivery, so
-merchants must deduplicate notifications.
+merchants must deduplicate notifications. Delivery retries up to 12 times;
+exhausted events require operator review before an authorized replay.
 
 See [the API specification](openapi.json) for endpoints, authentication and
 request/response formats.
