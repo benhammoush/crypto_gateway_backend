@@ -1,3 +1,8 @@
+/**
+ * Worker/D1 runtime verification with intercepted provider and webhook requests.
+ * @packageDocumentation
+ */
+
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { readFileSync } from "node:fs";
@@ -38,6 +43,7 @@ beforeAll(async () => {
           },
         ]),
       },
+      /** Supply controlled upstream responses and record webhook deliveries. */
       outboundService: async (request) => {
         outgoing.push(request.url);
         if (request.url === "https://merchant.example.org/webhook") {

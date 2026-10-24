@@ -1,3 +1,8 @@
+/**
+ * Devnet genesis identity enforcement and RPC failure regressions.
+ * @packageDocumentation
+ */
+
 import { afterEach, expect, it, vi } from "vitest";
 import { assertDevnet } from "../../src/solana";
 

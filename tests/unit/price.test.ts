@@ -1,3 +1,8 @@
+/**
+ * Exact USD-cent/lamport conversion and quote validation regressions.
+ * @packageDocumentation
+ */
+
 import { expect, it } from "vitest";
 import { formatSol, lamportsForUsd } from "../../src/price";
 

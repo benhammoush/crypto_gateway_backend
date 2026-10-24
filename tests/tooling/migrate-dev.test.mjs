@@ -1,3 +1,7 @@
+/** Dev migration authorization, schema evidence and execution-boundary regressions.
+ * @file
+ */
+
 import { expect, it, vi } from "vitest";
 import {
   existsSync,
@@ -51,6 +55,7 @@ function before() {
     schemaAttestationRecorded: false,
   };
 }
+/** Build the expected post-migration schema evidence. */
 function after() {
   return {
     ...before(),

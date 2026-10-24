@@ -1,6 +1,12 @@
+/**
+ * Environment validation and effective runtime configuration.
+ * @packageDocumentation
+ */
+
 import { base58Length } from "./security";
 import { Config, Env, Merchant } from "./types";
 
+/** Fixed configuration-failure labels safe for diagnostics. */
 type ConfigurationDiagnostic =
   | "APP_ENV_INVALID"
   | "CHECKOUT_ORIGIN_INVALID"
@@ -16,11 +22,13 @@ type ConfigurationDiagnostic =
 
 /** Fixed classifications only; never retain parser errors or configuration values. */
 export class ConfigurationError extends Error {
+  /** Retain the fixed diagnostic code rather than the failing secret binding value. */
   constructor(readonly diagnostic: ConfigurationDiagnostic) {
     super("Gateway configuration is incomplete.");
   }
 }
 
+/** Validate an absolute URL and report only its fixed configuration diagnostic. */
 function configurationUrl(
   value: string | undefined,
   diagnostic: ConfigurationDiagnostic,

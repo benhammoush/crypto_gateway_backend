@@ -1,3 +1,8 @@
+/**
+ * Solana network and finalized transaction validation.
+ * @packageDocumentation
+ */
+
 import { Payment, PublicError } from "./types";
 import { base58Length } from "./security";
 
@@ -6,6 +11,7 @@ export const MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 const SYSTEM_PROGRAM = "11111111111111111111111111111111";
 const COMPUTE_BUDGET_PROGRAM = "ComputeBudget111111111111111111111111111111";
 
+/** Parsed instruction fields consumed by transfer validation. */
 interface ParsedInstruction {
   programId: string;
   parsed?: unknown;
@@ -13,6 +19,7 @@ interface ParsedInstruction {
   data?: string;
 }
 
+/** Finalized transaction evidence consumed by settlement validation. */
 export interface ParsedTransaction {
   blockTime: number | null;
   meta: {
@@ -29,6 +36,7 @@ export interface ParsedTransaction {
   };
 }
 
+/** Send a bounded JSON-RPC request and reject transport or RPC-level failure. */
 export async function rpc<T>(
   url: string,
   method: string,
@@ -54,6 +62,7 @@ export async function rpc<T>(
   }
 }
 
+/** Require the configured RPC endpoint to report the Solana Devnet genesis identity. */
 export async function assertDevnet(url: string): Promise<void> {
   if ((await rpc<string>(url, "getGenesisHash")) !== DEVNET_GENESIS) {
     throw new PublicError(
@@ -93,6 +102,7 @@ export function validateTransfer(
   signature: string,
   payment: Payment,
 ): string {
+  /** Reject the transaction instead of accepting incomplete validation evidence. */
   const reject = () => {
     throw new PublicError(
       "TRANSFER_REJECTED",

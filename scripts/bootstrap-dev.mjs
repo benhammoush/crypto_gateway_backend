@@ -1,4 +1,6 @@
-/** Explicit first dev deployment only; no provisioning, migration or activation. @file */
+/** Explicit first dev deployment only; no provisioning, migration or activation.
+ * @file
+ */
 import assert from "node:assert/strict";
 import { appendFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -136,6 +138,7 @@ export async function bootstrapDev(
   } = {},
 ) {
   const config = bootstrapConfig(env);
+  /** Inspect the expected database schema without applying changes. */
   const inspectSchema = async () => {
     const schema = await inspect(env);
     assert.equal(schema.sourceSha, env.SOURCE_SHA);
@@ -204,6 +207,7 @@ if (
   pathToFileURL(process.argv[1]).href === import.meta.url
 ) {
   try {
+    /** Append the inspected state to the retained bootstrap evidence. */
     const record = (value) =>
       appendFileSync(
         process.env.GITHUB_STEP_SUMMARY,

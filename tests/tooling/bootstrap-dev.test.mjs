@@ -1,3 +1,7 @@
+/** First-dev bootstrap authorization and retained-evidence regressions.
+ * @file
+ */
+
 import { describe, expect, it } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import {
@@ -74,6 +78,7 @@ function fixture() {
   const calls = [];
   const records = [];
   const dependencies = {
+    /** Supply controlled schema-inspection evidence without changing a database. */
     inspect: async () => ({
       sourceSha: env.SOURCE_SHA,
       databaseIdentityMatched: true,
@@ -81,15 +86,19 @@ function fixture() {
       migrationTablePresent: true,
       expectedMigrationSetDigest: env.D1_SCHEMA_DIGEST,
     }),
+    /** Count the deployment command invocations requested by the fixture. */
     execute: async () => {
       executed++;
       return true;
     },
+    /** Supply successful configuration smoke evidence with payments disabled. */
     smoke: async () => ({
       configurationSmokeVerified: true,
       paymentsEnabled: false,
     }),
+    /** Retain emitted bootstrap evidence for the assertion. */
     record: (record) => records.push(record),
+    /** Assert metadata-only request constraints and return controlled provider state. */
     fetcher: async (url, options) => {
       calls.push({ url, options });
       expect(options.method).toBe("GET");
@@ -138,6 +147,7 @@ function fixture() {
     dependencies,
     calls,
     records,
+    /** Expose the command-execution count for the assertion. */
     executions: () => executed,
   };
 }

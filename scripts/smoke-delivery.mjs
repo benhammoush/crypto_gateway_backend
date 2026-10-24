@@ -1,4 +1,6 @@
-/** Read-only bounded health/configuration checks, never payment acceptance. @file */
+/** Read-only bounded health/configuration checks, never payment acceptance.
+ * @file
+ */
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";

@@ -1,6 +1,12 @@
+/**
+ * Signed webhook delivery from the durable settlement outbox.
+ * @packageDocumentation
+ */
+
 import { hmac } from "./security";
 import { Config } from "./types";
 
+/** Durable settlement-outbox record with delivery retry state. */
 interface EventRow {
   id: string;
   merchant_id: string;

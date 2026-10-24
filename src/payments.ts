@@ -1,3 +1,8 @@
+/**
+ * Payment creation, idempotency, durable verification and atomic settlement.
+ * @packageDocumentation
+ */
+
 import { formatSol, getQuote, lamportsForUsd } from "./price";
 import { hmac, sha256 } from "./security";
 import {
@@ -11,6 +16,7 @@ import { Config, Merchant, Payment, PublicError } from "./types";
 const EXPIRY_MS = 15 * 60_000;
 const REVIEW_WINDOW_MS = 24 * 60 * 60_000;
 
+/** Load a persisted payment or raise the public not-found error. */
 export async function getPayment(db: D1Database, id: string): Promise<Payment> {
   const payment = await db
     .prepare("SELECT * FROM payments WHERE id = ?")
@@ -32,6 +38,7 @@ export function checkoutToken(
   );
 }
 
+/** Build public payment state without exposing merchant secrets or the keyed backend RPC URL. */
 export async function paymentView(
   db: D1Database,
   config: Config,
@@ -78,6 +85,7 @@ export async function paymentView(
   };
 }
 
+/** Create or recover an idempotent payment; reject reuse of the key with different inputs. */
 export async function createPayment(
   db: D1Database,
   config: Config,
@@ -250,6 +258,7 @@ export async function submit(
     await verifyCandidate(db, config, payment, signature);
 }
 
+/** Verify finalized evidence; absent transactions remain pending rather than being rejected. */
 async function verifyCandidate(
   db: D1Database,
   config: Config,
@@ -295,6 +304,7 @@ async function verifyCandidate(
   }
 }
 
+/** Retry due durable candidates; transient failures leave them eligible for later verification. */
 export async function retryVerification(
   db: D1Database,
   config: Config,

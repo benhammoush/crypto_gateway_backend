@@ -1,3 +1,8 @@
+/**
+ * Gateway HTTP routing and scheduled verification/webhook delivery.
+ * @packageDocumentation
+ */
+
 import { config, ConfigurationError } from "./config";
 import { checkoutRpc } from "./checkout-rpc";
 import {
@@ -12,6 +17,7 @@ import { base58Length, bearer, equal, jsonBody, sha256 } from "./security";
 import { Config, Env, PublicError } from "./types";
 import { deliverWebhooks } from "./webhooks";
 
+/** Consume the database-backed request budget for this identity. */
 async function rateLimit(
   db: D1Database,
   identity: string,
@@ -34,6 +40,7 @@ async function rateLimit(
     );
 }
 
+/** Build a JSON response with request correlation and allowed-origin headers. */
 function response(
   data: unknown,
   requestId: string,
@@ -63,6 +70,7 @@ function response(
 }
 
 export default {
+  /** Validate configuration, authenticate and dispatch the incoming gateway request. */
   async fetch(request: Request, env: Env): Promise<Response> {
     const requestId = crypto.randomUUID();
     const origin = request.headers.get("origin");
@@ -246,6 +254,7 @@ export default {
       );
     }
   },
+  /** Retry durable settlement candidates and pending webhook deliveries. */
   async scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
     const settings = config(env);
     if (!settings.enabled) return;

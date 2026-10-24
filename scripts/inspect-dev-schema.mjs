@@ -13,6 +13,7 @@ export const CATALOG_SQL =
   "SELECT type, name, tbl_name, sql FROM sqlite_schema WHERE name NOT GLOB 'sqlite_*' AND name NOT GLOB '_cf_*' ORDER BY type, name LIMIT 129";
 export const MIGRATIONS_SQL =
   "SELECT name FROM d1_migrations ORDER BY id LIMIT 129";
+/** Controlled schema-inspection failure safe for the delivery diagnostic boundary. */
 class InspectionError extends Error {}
 
 /** Fail with a source-defined classification, never raw SQL or provider errors. */

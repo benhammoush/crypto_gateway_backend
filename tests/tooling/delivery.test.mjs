@@ -1,3 +1,7 @@
+/** Delivery configuration and workflow-contract regressions.
+ * @file
+ */
+
 import { describe, expect, it } from "vitest";
 // Delivery tooling is JavaScript executed directly by Node in CI.
 import {

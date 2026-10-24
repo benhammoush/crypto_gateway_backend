@@ -1,3 +1,7 @@
+/** Read-only delivery-diagnostic transport and failure-boundary regressions.
+ * @file
+ */
+
 import { expect, it, vi } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -227,9 +231,11 @@ it("bounds and cancels provider bodies without leaking malformed output or netwo
       if (kind === "malformed") return new Response("synthetic-secret");
       return new Response(
         new ReadableStream({
+          /** Feed oversized response chunks to exercise the body-size boundary. */
           start(controller) {
             controller.enqueue(new Uint8Array(65_537));
           },
+          /** Record cancellation after the diagnostic rejects the response body. */
           cancel() {
             cancelled = true;
           },
