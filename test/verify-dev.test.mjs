@@ -176,14 +176,8 @@ it("rejects oversized and malformed metadata", async () => {
   );
 });
 
-it("uses a manual main-only dev job without deployment tracking or credential-bearing install", () => {
-  const workflow = readFileSync(".github/workflows/verify-dev.yml", "utf8");
-  expect(workflow).toContain("workflow_dispatch:");
-  expect(workflow).toContain("github.ref == 'refs/heads/main'");
-  expect(workflow).toContain("name: dev\n      deployment: false");
-  expect(workflow).toContain("persist-credentials: false");
-  expect(workflow).toContain("contents: read");
-  expect(workflow).not.toMatch(
-    /npm ci|wrangler|production|workflow_call|pull_request|push:/,
+it("retires the old access-verification workflow entry point", () => {
+  expect(() => readFileSync(".github/workflows/verify-dev.yml")).toThrow(
+    expect.objectContaining({ code: "ENOENT" }),
   );
 });

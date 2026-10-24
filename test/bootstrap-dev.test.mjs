@@ -273,18 +273,8 @@ describe("explicit first dev bootstrap", () => {
     expect(calls).toBe(1);
     expect(existsSync("wrangler.bootstrap.json")).toBe(false);
   });
-  it("has independent manual/main/exact-SHA/quality/concurrency/credential gates", () => {
-    const yaml = readFileSync(".github/workflows/bootstrap-dev.yml", "utf8");
-    expect(yaml).toContain("needs: quality");
-    expect(yaml).toContain("environment: dev");
-    expect(yaml).toContain(
-      "group: deploy-${{ github.repository_owner }}-${{ github.event.repository.name }}-dev",
-    );
-    expect(yaml).toContain("cancel-in-progress: false");
-    expect(yaml).toContain("git ls-remote origin refs/heads/main");
-    expect(yaml).toContain("CLOUDFLARE_WORKER_BOOTSTRAP_TOKEN");
-    expect(yaml).not.toContain("production");
-    expect(yaml).not.toContain("migrations apply");
+  it("retires the one-time first-Worker workflow entry point", () => {
+    expect(existsSync(".github/workflows/bootstrap-dev.yml")).toBe(false);
   });
 });
 

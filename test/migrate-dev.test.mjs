@@ -354,19 +354,8 @@ it("does not print arbitrary error details through the CLI when context is rejec
   );
 });
 
-it("requires current-source checks before the only credential-bearing step and never installs with credentials", () => {
-  const workflow = readFileSync(".github/workflows/migrate-dev.yml", "utf8");
-  expect(workflow).toContain("name: dev\n      deployment: false");
-  expect(workflow).toContain("github.ref == 'refs/heads/main'");
-  expect(workflow).toContain('test "$GITHUB_SHA" = "$EXPECTED_SOURCE_SHA"');
-  expect(workflow).toContain('test "$GITHUB_RUN_ATTEMPT" = 1');
-  expect(workflow).toContain("contents: read");
-  expect(workflow).toContain("persist-credentials: false");
-  expect(workflow).toContain("secrets.CLOUDFLARE_D1_MIGRATION_TOKEN");
-  expect(workflow.indexOf("npm run check")).toBeLessThan(
-    workflow.indexOf("secrets.CLOUDFLARE_D1_MIGRATION_TOKEN"),
-  );
-  expect(workflow).not.toMatch(
-    /workflow_call|pull_request|push:|continue-on-error|production/,
+it("retires the one-time first-schema workflow entry point", () => {
+  expect(() => readFileSync(".github/workflows/migrate-dev.yml")).toThrow(
+    expect.objectContaining({ code: "ENOENT" }),
   );
 });
