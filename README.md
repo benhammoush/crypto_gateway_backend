@@ -1,27 +1,59 @@
-# Crypto gateway — backend
+# Crypto Gateway — backend
 
-A standalone, non-custodial API for payments quoted in USD and settled in native
-SOL. **Solana Devnet only; no real funds.** The gateway handles payment state and
-verification, not commerce orders or fulfillment.
+A non-custodial payment API that lets merchants request payments in USD and
+customers pay in SOL, directly to the merchant's wallet.
 
-## Tech stack and system design
+## Tech stack
 
-| Layer                    | Tools                              |
-| ------------------------ | ---------------------------------- |
-| API runtime              | TypeScript, Cloudflare Workers     |
-| Persistence              | Cloudflare D1 (SQLite)             |
-| Pricing and verification | Jupiter Price API, Solana JSON-RPC |
-| Testing                  | Vitest, Miniflare                  |
+| Layer                    | Technology                     |
+| ------------------------ | ------------------------------ |
+| API runtime              | TypeScript, Cloudflare Workers |
+| Database                 | Cloudflare D1 (SQLite)         |
+| Pricing                  | Jupiter Price API              |
+| Transaction verification | Solana JSON-RPC                |
+| Testing                  | Vitest, Miniflare              |
 
-Merchant backends create payments through the HTTP API. The gateway locks a quote,
-stores payment state in D1 and issues a payment-scoped checkout link. Scheduled
-jobs verify submitted transaction signatures and deliver signed webhooks, so
-verification continues independently of the browser.
+## System design
 
-Merchant credentials and provider keys stay server-side. Wallet submission alone
-does not settle a payment: the gateway verifies finalized execution, the recipient
-and the exact amount before confirming it.
+```mermaid
+sequenceDiagram
+    participant Merchant
+    participant Gateway
+    participant Customer
+    participant Solana
 
-The [OpenAPI contract](openapi.json) defines the endpoints;
-the [payment architecture](docs/ARCHITECTURE.md) describes pricing, persistence and
-verification boundaries.
+    Merchant->>Gateway: Create USD payment
+    Gateway-->>Merchant: Return checkout link
+    Merchant->>Customer: Share checkout link
+    Customer->>Solana: Pay SOL to merchant wallet
+    Customer->>Gateway: Submit transaction signature
+    Gateway->>Solana: Verify finalized payment
+    Solana-->>Gateway: Payment verified
+    Gateway-->>Merchant: Send signed confirmation webhook
+```
+
+## Responsibilities
+
+- Create payments and lock USD-to-SOL quotes for 15 minutes.
+- Provide payment-scoped checkout access and payment status.
+- Independently verify finalized transactions, including the recipient and exact amount.
+- Deliver signed merchant notifications with automatic retries.
+
+Submitting a transaction is not payment confirmation. Scheduled verification
+continues even if the customer closes the checkout.
+
+The gateway never holds funds or receives wallet private keys. Merchants remain
+responsible for pricing, orders and fulfillment. Automated refunds are not supported.
+
+## Integration
+
+Merchant backends create and query payments using server-side credentials.
+Checkout uses payment-scoped access rather than merchant credentials; provider
+keys stay server-side.
+
+Payment creation supports idempotency. Webhooks use at-least-once delivery, so
+merchants must deduplicate notifications. Delivery retries up to 12 times;
+exhausted events require operator review before an authorized replay.
+
+See [the API specification](openapi.json) for endpoints, authentication and
+request/response formats.
