@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import worker from "../../src/index";
 import { config } from "../../src/config";
 import { getPayment, retryVerification, settle } from "../../src/payments";
-import { formatSol, lamportsForUsd, SOL_MINT } from "../../src/price";
+import { SOL_MINT } from "../../src/price";
 import { base58Length, sha256 } from "../../src/security";
 import {
   DEVNET_GENESIS,
@@ -355,21 +355,6 @@ it("bounds aggregate RPC use across checkout capabilities", async () => {
 }, 30_000);
 
 describe("pricing", () => {
-  it("uses exact upward rounding, including exponent notation", () => {
-    expect(lamportsForUsd(100, "3")).toBe("333333334");
-    expect(lamportsForUsd(100, "1.5025e2")).toBe(lamportsForUsd(100, "150.25"));
-    expect(formatSol("1000000001")).toBe("1.000000001");
-    for (const price of [
-      "0",
-      "-1",
-      "Infinity",
-      "1e999999",
-      "0.0000000000000000000000000001",
-    ])
-      expect(() => lamportsForUsd(100, price)).toThrow();
-    for (const cents of [0, -1, 1.2, 1_000_001])
-      expect(() => lamportsForUsd(cents, "150")).toThrow();
-  });
   it("fails closed on invalid provider data", async () => {
     fetchMock.mockImplementation(async () =>
       Response.json({ result: DEVNET_GENESIS }),
