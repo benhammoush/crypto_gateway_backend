@@ -13,7 +13,7 @@ import {
   classifyDeploymentError,
   deploymentExecutor,
   retainDeploymentFailure,
-} from "../scripts/deployment-error.mjs";
+} from "../../scripts/deployment-error.mjs";
 
 vi.mock("node:fs", async (importOriginal) => {
   const original = await importOriginal();

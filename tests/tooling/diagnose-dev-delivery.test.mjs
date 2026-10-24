@@ -2,8 +2,8 @@ import { expect, it, vi } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, URL } from "node:url";
-import { diagnoseDev } from "../scripts/diagnose-dev-delivery.mjs";
-import { migrationDigest } from "../scripts/check-delivery.mjs";
+import { diagnoseDev } from "../../scripts/diagnose-dev-delivery.mjs";
+import { migrationDigest } from "../../scripts/check-delivery.mjs";
 
 const { Response, ReadableStream } = globalThis;
 
@@ -274,7 +274,7 @@ it("fails safely from the CLI before credential access and never dumps exception
     process.execPath,
     [
       fileURLToPath(
-        new URL("../scripts/diagnose-dev-delivery.mjs", import.meta.url),
+        new URL("../../scripts/diagnose-dev-delivery.mjs", import.meta.url),
       ),
     ],
     {

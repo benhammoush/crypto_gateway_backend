@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, URL } from "node:url";
-import { verifyDev } from "../scripts/verify-dev.mjs";
+import { verifyDev } from "../../scripts/verify-dev.mjs";
 const { Response, AbortSignal } = globalThis;
 afterEach(() => vi.restoreAllMocks());
 
@@ -79,7 +79,7 @@ it("cancels oversized response streams", async () => {
 });
 
 it("never prints network errors or secrets from the CLI", () => {
-  const module = new URL("../scripts/verify-dev.mjs", import.meta.url);
+  const module = new URL("../../scripts/verify-dev.mjs", import.meta.url);
   const source = `process.argv[1] = ${JSON.stringify(fileURLToPath(module))}; globalThis.fetch = async () => { throw new Error('private-provider-payload synthetic-secret'); }; await import(${JSON.stringify(module.href)});`;
   const result = spawnSync(
     process.execPath,
