@@ -3,7 +3,7 @@
 name: Weekly vulnerability audit
 on:
   schedule:
-    - cron: "23 9 * * 1"
+    - cron: '23 9 * * 1'
   workflow_dispatch:
 permissions:
   contents: read
@@ -15,4 +15,4 @@ jobs:
     name: Audit vulnerabilities
     uses: benhammoush/ci-cd-workflows/.github/workflows/weekly-vuln-audit.yml@64b5e00a3d2895a8cba05b040f0d5a0415613d9e
     with:
-      node_version: "24"
+      node_version: '24'

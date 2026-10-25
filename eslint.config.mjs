@@ -2,51 +2,51 @@
  * @file
  */
 
-import js from "@eslint/js";
-import ts from "typescript-eslint";
-import jsdoc from "eslint-plugin-jsdoc";
-import tsdoc from "eslint-plugin-tsdoc";
+import js from '@eslint/js';
+import ts from 'typescript-eslint';
+import jsdoc from 'eslint-plugin-jsdoc';
+import tsdoc from 'eslint-plugin-tsdoc';
 
 // Named contracts are documented; anonymous callbacks and declarative tests are exempt.
 const contexts = [
-  "FunctionDeclaration",
+  'FunctionDeclaration',
   "FunctionExpression[parent.type='VariableDeclarator']",
   "ArrowFunctionExpression[parent.type='VariableDeclarator']",
-  "FunctionExpression[id]",
-  "CallExpression[callee.name=/^(memo|forwardRef)$/] > :matches(ArrowFunctionExpression, FunctionExpression)",
+  'FunctionExpression[id]',
+  'CallExpression[callee.name=/^(memo|forwardRef)$/] > :matches(ArrowFunctionExpression, FunctionExpression)',
   "CallExpression[callee.object.name='React'][callee.property.name=/^(memo|forwardRef)$/] > :matches(ArrowFunctionExpression, FunctionExpression)",
-  "MethodDefinition",
-  "Property[value.type=/^(ArrowFunctionExpression|FunctionExpression)$/]",
-  "PropertyDefinition[value.type=/^(ArrowFunctionExpression|FunctionExpression)$/]",
-  "ClassDeclaration",
-  "TSInterfaceDeclaration",
-  "TSTypeAliasDeclaration",
-  "TSMethodSignature",
+  'MethodDefinition',
+  'Property[value.type=/^(ArrowFunctionExpression|FunctionExpression)$/]',
+  'PropertyDefinition[value.type=/^(ArrowFunctionExpression|FunctionExpression)$/]',
+  'ClassDeclaration',
+  'TSInterfaceDeclaration',
+  'TSTypeAliasDeclaration',
+  'TSMethodSignature',
   "TSPropertySignature[typeAnnotation.typeAnnotation.type='TSFunctionType']",
   "VariableDeclaration:not([parent.type='ExportNamedDeclaration']):has(VariableDeclarator > CallExpression[callee.name=/^(memo|forwardRef)$/])",
   "VariableDeclaration:not([parent.type='ExportNamedDeclaration']):has(VariableDeclarator > CallExpression[callee.object.name='React'][callee.property.name=/^(memo|forwardRef)$/])",
-  "ExportNamedDeclaration:has(VariableDeclaration > VariableDeclarator > CallExpression[callee.name=/^(memo|forwardRef)$/])",
+  'ExportNamedDeclaration:has(VariableDeclaration > VariableDeclarator > CallExpression[callee.name=/^(memo|forwardRef)$/])',
   "ExportNamedDeclaration:has(VariableDeclaration > VariableDeclarator > CallExpression[callee.object.name='React'][callee.property.name=/^(memo|forwardRef)$/])",
 ];
 
 const callableContexts = [
-  "ArrowFunctionExpression",
-  "FunctionDeclaration",
-  "FunctionExpression",
-  "TSMethodSignature",
+  'ArrowFunctionExpression',
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'TSMethodSignature',
   "TSPropertySignature[typeAnnotation.typeAnnotation.type='TSFunctionType']",
 ];
 
 export default ts.config(
-  { ignores: ["dist/**", "node_modules/**", ".wrangler/**"] },
+  { ignores: ['dist/**', 'node_modules/**', '.wrangler/**'] },
   {
-    files: ["**/*.mjs"],
+    files: ['**/*.mjs'],
     languageOptions: {
       globals: {
-        process: "readonly",
-        fetch: "readonly",
-        AbortSignal: "readonly",
-        setTimeout: "readonly",
+        process: 'readonly',
+        fetch: 'readonly',
+        AbortSignal: 'readonly',
+        setTimeout: 'readonly',
       },
     },
   },
@@ -54,10 +54,10 @@ export default ts.config(
   ...ts.configs.recommended,
   ...ts.configs.recommendedTypeChecked.map((config) => ({
     ...config,
-    files: ["**/*.{ts,tsx}"],
+    files: ['**/*.{ts,tsx}'],
   })),
   {
-    files: ["**/*.{ts,tsx}"],
+    files: ['**/*.{ts,tsx}'],
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -66,37 +66,37 @@ export default ts.config(
     },
   },
   {
-    files: ["**/*.{js,mjs,cjs,ts,tsx}"],
+    files: ['**/*.{js,mjs,cjs,ts,tsx}'],
     plugins: { jsdoc },
-    settings: { jsdoc: { mode: "typescript" } },
+    settings: { jsdoc: { mode: 'typescript' } },
     rules: {
-      "jsdoc/require-jsdoc": [
-        "error",
+      'jsdoc/require-jsdoc': [
+        'error',
         {
           contexts,
           exemptEmptyFunctions: false,
           exemptEmptyConstructors: false,
         },
       ],
-      "jsdoc/require-description": [
-        "error",
-        { contexts: ["any"], exemptedBy: [] },
+      'jsdoc/require-description': [
+        'error',
+        { contexts: ['any'], exemptedBy: [] },
       ],
-      "jsdoc/check-tag-names": [
-        "error",
-        { definedTags: ["packageDocumentation"] },
+      'jsdoc/check-tag-names': [
+        'error',
+        { definedTags: ['packageDocumentation'] },
       ],
-      "jsdoc/check-param-names": "error",
-      "jsdoc/require-param": ["error", { contexts: callableContexts }],
-      "jsdoc/require-param-description": ["error", { contexts: ["any"] }],
-      "jsdoc/require-returns": [
-        "error",
+      'jsdoc/check-param-names': 'error',
+      'jsdoc/require-param': ['error', { contexts: callableContexts }],
+      'jsdoc/require-param-description': ['error', { contexts: ['any'] }],
+      'jsdoc/require-returns': [
+        'error',
         {
           contexts: [
-            "ArrowFunctionExpression",
-            "FunctionDeclaration",
-            "FunctionExpression",
-            "TSMethodSignature",
+            'ArrowFunctionExpression',
+            'FunctionDeclaration',
+            'FunctionExpression',
+            'TSMethodSignature',
             {
               context:
                 "TSPropertySignature[typeAnnotation.typeAnnotation.type='TSFunctionType']:not([typeAnnotation.typeAnnotation.returnType.typeAnnotation.type='TSVoidKeyword']):not([typeAnnotation.typeAnnotation.returnType.typeAnnotation.type='TSUndefinedKeyword']):not([typeAnnotation.typeAnnotation.returnType.typeAnnotation.type='TSNeverKeyword'])",
@@ -105,19 +105,19 @@ export default ts.config(
           ],
         },
       ],
-      "jsdoc/require-returns-description": ["error", { contexts: ["any"] }],
-      "jsdoc/valid-types": "error",
-      "jsdoc/require-file-overview": "error",
+      'jsdoc/require-returns-description': ['error', { contexts: ['any'] }],
+      'jsdoc/valid-types': 'error',
+      'jsdoc/require-file-overview': 'error',
     },
   },
   {
-    files: ["**/*.{ts,tsx}"],
+    files: ['**/*.{ts,tsx}'],
     plugins: { tsdoc },
     rules: {
-      "tsdoc/syntax": "error",
-      "jsdoc/no-types": "error",
-      "jsdoc/require-file-overview": [
-        "error",
+      'tsdoc/syntax': 'error',
+      'jsdoc/no-types': 'error',
+      'jsdoc/require-file-overview': [
+        'error',
         {
           tags: {
             packageDocumentation: {

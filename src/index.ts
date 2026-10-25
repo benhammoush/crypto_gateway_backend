@@ -3,8 +3,8 @@
  * @packageDocumentation
  */
 
-import { config, ConfigurationError } from "./config";
-import { checkoutRpc } from "./checkout-rpc";
+import { config, ConfigurationError } from './config';
+import { checkoutRpc } from './checkout-rpc';
 import {
   checkoutToken,
   createPayment,
@@ -12,10 +12,10 @@ import {
   paymentView,
   retryVerification,
   submit,
-} from "./payments";
-import { base58Length, bearer, equal, jsonBody, sha256 } from "./security";
-import { Config, Env, PublicError } from "./types";
-import { deliverWebhooks } from "./webhooks";
+} from './payments';
+import { base58Length, bearer, equal, jsonBody, sha256 } from './security';
+import { Config, Env, PublicError } from './types';
+import { deliverWebhooks } from './webhooks';
 
 /** Consume the database-backed request budget for this identity.
  * @param db - Selected environment's database binding.
@@ -38,8 +38,8 @@ async function rateLimit(
     .first<{ count: number }>();
   if (!result || result.count > limit)
     throw new PublicError(
-      "RATE_LIMITED",
-      "Too many requests. Try again shortly.",
+      'RATE_LIMITED',
+      'Too many requests. Try again shortly.',
       429,
     );
 }
@@ -62,18 +62,18 @@ function response(
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      "content-type": "application/json",
-      "cache-control": "no-store",
-      "x-content-type-options": "nosniff",
-      "referrer-policy": "no-referrer",
-      "x-request-id": requestId,
+      'content-type': 'application/json',
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'no-referrer',
+      'x-request-id': requestId,
       ...(origin === allowed
         ? {
-            "access-control-allow-origin": origin,
-            vary: "Origin",
-            "access-control-allow-methods": "GET, POST, OPTIONS",
-            "access-control-allow-headers":
-              "Authorization, Content-Type, Idempotency-Key, Solana-Client",
+            'access-control-allow-origin': origin,
+            vary: 'Origin',
+            'access-control-allow-methods': 'GET, POST, OPTIONS',
+            'access-control-allow-headers':
+              'Authorization, Content-Type, Idempotency-Key, Solana-Client',
           }
         : {}),
     },
@@ -88,14 +88,14 @@ export default {
    */
   async fetch(request: Request, env: Env): Promise<Response> {
     const requestId = crypto.randomUUID();
-    const origin = request.headers.get("origin");
+    const origin = request.headers.get('origin');
     let settings: Config | undefined;
     try {
       const path = new URL(request.url).pathname;
-      if (path === "/health" && request.method === "GET") {
+      if (path === '/health' && request.method === 'GET') {
         return response(
           {
-            data: { service: "crypto_gateway_backend", version: "0.2.1" },
+            data: { service: 'crypto_gateway_backend', version: '0.2.1' },
             meta: { requestId },
           },
           requestId,
@@ -107,16 +107,16 @@ export default {
         settings = config(env);
       } catch (error) {
         if (
-          env.APP_ENV === "dev" &&
-          path === "/ready" &&
-          request.method === "GET" &&
+          env.APP_ENV === 'dev' &&
+          path === '/ready' &&
+          request.method === 'GET' &&
           error instanceof ConfigurationError
         ) {
           return response(
             {
               error: {
-                code: "NOT_CONFIGURED",
-                message: "Gateway configuration is incomplete.",
+                code: 'NOT_CONFIGURED',
+                message: 'Gateway configuration is incomplete.',
                 requestId,
                 diagnostic: error.diagnostic,
               },
@@ -128,26 +128,26 @@ export default {
           );
         }
         throw new PublicError(
-          "NOT_CONFIGURED",
-          "Gateway configuration is incomplete.",
+          'NOT_CONFIGURED',
+          'Gateway configuration is incomplete.',
           503,
         );
       }
       if (origin && origin !== settings.checkoutOrigin)
         throw new PublicError(
-          "ORIGIN_REJECTED",
-          "Browser origin is not approved.",
+          'ORIGIN_REJECTED',
+          'Browser origin is not approved.',
           403,
         );
-      if (request.method === "OPTIONS")
+      if (request.method === 'OPTIONS')
         return response({}, requestId, origin, settings.checkoutOrigin);
-      if (path === "/ready" && request.method === "GET") {
+      if (path === '/ready' && request.method === 'GET') {
         return response(
           {
             data: {
               ready: settings.enabled,
               environment: settings.environment,
-              network: "solana-devnet",
+              network: 'solana-devnet',
             },
             meta: { requestId },
           },
@@ -159,44 +159,44 @@ export default {
       }
       if (!settings.enabled)
         throw new PublicError(
-          "PAYMENTS_DISABLED",
-          "Payment processing is disabled.",
+          'PAYMENTS_DISABLED',
+          'Payment processing is disabled.',
           503,
         );
       await rateLimit(
         env.DB,
-        `ip:${request.headers.get("cf-connecting-ip") ?? "local"}`,
+        `ip:${request.headers.get('cf-connecting-ip') ?? 'local'}`,
         180,
       );
       const credential = bearer(request);
       let data: unknown;
-      if (path.startsWith("/v1/payments")) {
+      if (path.startsWith('/v1/payments')) {
         const digest = await sha256(credential);
         const merchant = settings.merchants.find((entry) =>
           equal(entry.apiKeyHash, digest),
         );
         if (!merchant)
           throw new PublicError(
-            "UNAUTHORIZED",
-            "Invalid merchant credential.",
+            'UNAUTHORIZED',
+            'Invalid merchant credential.',
             401,
           );
         await rateLimit(env.DB, `merchant:${merchant.id}`, 120);
-        if (path === "/v1/payments" && request.method === "POST") {
+        if (path === '/v1/payments' && request.method === 'POST') {
           data = await createPayment(
             env.DB,
             settings,
             merchant,
             await jsonBody(request),
-            request.headers.get("idempotency-key") ?? "",
+            request.headers.get('idempotency-key') ?? '',
           );
         } else {
           const match = /^\/v1\/payments\/([a-f0-9-]{36})$/.exec(path);
-          if (!match || request.method !== "GET")
-            throw new PublicError("NOT_FOUND", "Endpoint was not found.", 404);
+          if (!match || request.method !== 'GET')
+            throw new PublicError('NOT_FOUND', 'Endpoint was not found.', 404);
           const payment = await getPayment(env.DB, match[1]);
           if (payment.merchant_id !== merchant.id)
-            throw new PublicError("NOT_FOUND", "Payment was not found.", 404);
+            throw new PublicError('NOT_FOUND', 'Payment was not found.', 404);
           data = await paymentView(env.DB, settings, payment, true);
         }
       } else {
@@ -204,20 +204,20 @@ export default {
           /^\/v1\/checkout\/([a-f0-9-]{36})(\/transactions|\/rpc)?$/.exec(path);
         if (
           !match ||
-          (match[2] ? request.method !== "POST" : request.method !== "GET")
+          (match[2] ? request.method !== 'POST' : request.method !== 'GET')
         )
-          throw new PublicError("NOT_FOUND", "Endpoint was not found.", 404);
+          throw new PublicError('NOT_FOUND', 'Endpoint was not found.', 404);
         const payment = await getPayment(env.DB, match[1]);
         if (!equal(credential, await checkoutToken(settings, payment)))
           throw new PublicError(
-            "UNAUTHORIZED",
-            "Invalid checkout session.",
+            'UNAUTHORIZED',
+            'Invalid checkout session.',
             401,
           );
         await rateLimit(env.DB, `checkout:${payment.id}`, 60);
-        if (match[2] === "/rpc") {
+        if (match[2] === '/rpc') {
           await rateLimit(env.DB, `rpc:${payment.id}`, 12);
-          await rateLimit(env.DB, "rpc:global", 60);
+          await rateLimit(env.DB, 'rpc:global', 60);
           return response(
             await checkoutRpc(settings.rpc, payment, await jsonBody(request)),
             requestId,
@@ -229,12 +229,12 @@ export default {
           const body = await jsonBody(request);
           if (
             Object.keys(body).length !== 1 ||
-            typeof body.signature !== "string" ||
+            typeof body.signature !== 'string' ||
             base58Length(body.signature) !== 64
           ) {
             throw new PublicError(
-              "INVALID_SIGNATURE",
-              "Supply a valid transaction signature.",
+              'INVALID_SIGNATURE',
+              'Supply a valid transaction signature.',
             );
           }
           await submit(env.DB, settings, payment, body.signature);
@@ -256,8 +256,8 @@ export default {
         error instanceof PublicError
           ? error
           : new PublicError(
-              "INTERNAL_ERROR",
-              "The request could not be completed.",
+              'INTERNAL_ERROR',
+              'The request could not be completed.',
               500,
             );
       return response(
@@ -278,7 +278,7 @@ export default {
     if (!settings.enabled) return;
     await retryVerification(env.DB, settings);
     await deliverWebhooks(env.DB, settings);
-    await env.DB.prepare("DELETE FROM rate_limits WHERE expires_at < ?")
+    await env.DB.prepare('DELETE FROM rate_limits WHERE expires_at < ?')
       .bind(Date.now())
       .run();
   },

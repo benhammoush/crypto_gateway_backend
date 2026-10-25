@@ -1,32 +1,32 @@
 /** Explicit first dev deployment only; no provisioning, migration or activation.
  * @file
  */
-import assert from "node:assert/strict";
-import { appendFileSync, writeFileSync, unlinkSync } from "node:fs";
-import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { hostedConfig, migrationDigest } from "./check-delivery.mjs";
-import { inspectDevSchema } from "./inspect-dev-schema.mjs";
-import { readJson, smokeDelivery } from "./smoke-delivery.mjs";
+import assert from 'node:assert/strict';
+import { appendFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { hostedConfig, migrationDigest } from './check-delivery.mjs';
+import { inspectDevSchema } from './inspect-dev-schema.mjs';
+import { readJson, smokeDelivery } from './smoke-delivery.mjs';
 
 /** Require explicit first-dev authorization and successful empty-history reads.
  * @param env - Explicit bootstrap authorization and isolated dev identities.
  * @returns Validated first-dev Worker configuration, rejecting ambiguous state.
  */
 export function bootstrapConfig(env) {
-  assert.equal(env.GITHUB_ACTIONS, "true");
-  assert.equal(env.GITHUB_EVENT_NAME, "workflow_dispatch");
-  assert.equal(env.GITHUB_REF, "refs/heads/main");
-  assert.equal(env.GITHUB_RUN_ATTEMPT, "1");
+  assert.equal(env.GITHUB_ACTIONS, 'true');
+  assert.equal(env.GITHUB_EVENT_NAME, 'workflow_dispatch');
+  assert.equal(env.GITHUB_REF, 'refs/heads/main');
+  assert.equal(env.GITHUB_RUN_ATTEMPT, '1');
   assert.equal(env.SOURCE_SHA, env.GITHUB_SHA);
-  assert.equal(env.CONFIRM_FIRST_DEV_DEPLOYMENT, "true");
-  assert.equal(env.DELIVERY_TARGET, "dev");
-  assert.equal(env.PAYMENTS_ENABLED, "false");
-  assert.match(env.EXPECTED_WORKER_ID ?? "", /^[a-f0-9]{32}$/);
+  assert.equal(env.CONFIRM_FIRST_DEV_DEPLOYMENT, 'true');
+  assert.equal(env.DELIVERY_TARGET, 'dev');
+  assert.equal(env.PAYMENTS_ENABLED, 'false');
+  assert.match(env.EXPECTED_WORKER_ID ?? '', /^[a-f0-9]{32}$/);
   assert.ok(env.CLOUDFLARE_WORKER_BOOTSTRAP_TOKEN);
   const config = hostedConfig(env, migrationDigest());
-  assert.equal(config.vars.PAYMENTS_ENABLED, "false");
+  assert.equal(config.vars.PAYMENTS_ENABLED, 'false');
   return { ...config, preview_urls: false };
 }
 
@@ -40,17 +40,17 @@ async function metadata(env, path, fetcher) {
   const response = await fetcher(
     `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/workers/${path}`,
     {
-      method: "GET",
+      method: 'GET',
       headers: {
         authorization: `Bearer ${env.CLOUDFLARE_WORKER_BOOTSTRAP_TOKEN}`,
       },
-      redirect: "error",
+      redirect: 'error',
       signal: globalThis.AbortSignal.timeout(15_000),
     },
   );
   if (!response.ok) {
     await response.body?.cancel();
-    throw new Error("Worker metadata inaccessible.");
+    throw new Error('Worker metadata inaccessible.');
   }
   const body = await readJson(response);
   assert.equal(body.success, true);
@@ -67,7 +67,7 @@ async function workerState(env, fetcher, empty) {
   const path = `workers/${env.EXPECTED_WORKER_ID}`;
   const { result: worker } = await metadata(env, path, fetcher);
   assert.equal(worker?.id, env.EXPECTED_WORKER_ID);
-  assert.equal(worker.name, "crypto-gateway-dev");
+  assert.equal(worker.name, 'crypto-gateway-dev');
   assert.equal(worker.subdomain?.url, env.API_ORIGIN);
   assert.equal(worker.subdomain?.previews_enabled, false);
   assert.equal(worker.subdomain?.enabled, !empty);
@@ -86,18 +86,18 @@ async function workerState(env, fetcher, empty) {
   if (empty) {
     // Reject attached domains/routes/services; do not bootstrap a referenced resource.
     for (const key of [
-      "domains",
-      "queues",
-      "workers",
-      "durable_objects",
-      "dispatch_namespace_outbounds",
+      'domains',
+      'queues',
+      'workers',
+      'durable_objects',
+      'dispatch_namespace_outbounds',
     ]) {
       assert.ok(Array.isArray(worker.references?.[key]));
       assert.equal(worker.references[key].length, 0);
     }
     return null;
   }
-  assert.match(versions.result[0]?.id ?? "", /^[a-f0-9-]{32,36}$/);
+  assert.match(versions.result[0]?.id ?? '', /^[a-f0-9-]{32,36}$/);
   return versions.result[0].id;
 }
 
@@ -108,12 +108,12 @@ async function workerState(env, fetcher, empty) {
  * @returns Whether the single captured Wrangler command succeeded.
  */
 export function runBootstrapCommand(env, config, spawn = spawnSync) {
-  const path = resolve("wrangler.bootstrap.json");
+  const path = resolve('wrangler.bootstrap.json');
   writeFileSync(
     path,
     `${JSON.stringify({ ...config, account_id: env.CLOUDFLARE_ACCOUNT_ID }, null, 2)}\n`,
     {
-      flag: "wx",
+      flag: 'wx',
       mode: 0o600,
     },
   );
@@ -121,18 +121,18 @@ export function runBootstrapCommand(env, config, spawn = spawnSync) {
     const result = spawn(
       process.execPath,
       [
-        resolve("node_modules/wrangler/bin/wrangler.js"),
-        "deploy",
-        "--config",
+        resolve('node_modules/wrangler/bin/wrangler.js'),
+        'deploy',
+        '--config',
         path,
       ],
       {
         env: {
           ...env,
           CLOUDFLARE_API_TOKEN: env.CLOUDFLARE_WORKER_BOOTSTRAP_TOKEN,
-          WRANGLER_SEND_METRICS: "false",
+          WRANGLER_SEND_METRICS: 'false',
         },
-        encoding: "utf8",
+        encoding: 'utf8',
         timeout: 120_000,
         maxBuffer: 1_048_576,
         windowsHide: true,
@@ -172,7 +172,7 @@ export async function bootstrapDev(
     const schema = await inspect(env);
     assert.equal(schema.sourceSha, env.SOURCE_SHA);
     assert.equal(schema.databaseIdentityMatched, true);
-    assert.equal(schema.schemaState, "definitions-and-records-match");
+    assert.equal(schema.schemaState, 'definitions-and-records-match');
     assert.equal(schema.migrationTablePresent, true);
     assert.equal(schema.expectedMigrationSetDigest, env.D1_SCHEMA_DIGEST);
     return schema;
@@ -182,7 +182,7 @@ export async function bootstrapDev(
   record({
     sourceSha: env.SOURCE_SHA,
     workerId: env.EXPECTED_WORKER_ID,
-    stage: "ATTEMPT_STARTING_NO_ACCEPTED_PREDECESSOR",
+    stage: 'ATTEMPT_STARTING_NO_ACCEPTED_PREDECESSOR',
   });
   let commandCompleted = false;
   try {
@@ -196,12 +196,12 @@ export async function bootstrapDev(
     versionId = await workerState(env, fetcher, false);
     const { result: history } = await metadata(
       env,
-      "scripts/crypto-gateway-dev/deployments",
+      'scripts/crypto-gateway-dev/deployments',
       fetcher,
     );
     assert.equal(history?.deployments?.length, 1);
     const deployment = history.deployments[0];
-    assert.match(deployment.id ?? "", /^[a-f0-9-]{32,36}$/);
+    assert.match(deployment.id ?? '', /^[a-f0-9-]{32,36}$/);
     assert.deepEqual(deployment.versions, [
       { version_id: versionId, percentage: 100 },
     ]);
@@ -210,7 +210,7 @@ export async function bootstrapDev(
       workerId: env.EXPECTED_WORKER_ID,
       versionId,
       deploymentId: deployment.id,
-      stage: "PROVIDER_IDENTITIES_OBSERVED",
+      stage: 'PROVIDER_IDENTITIES_OBSERVED',
     });
     await inspectSchema();
     const result = await smoke(env, fetcher);
@@ -250,7 +250,7 @@ if (
     if (!result.bootstrapVerified) process.exitCode = 1;
   } catch {
     process.stderr.write(
-      "First dev bootstrap stopped. Inspect metadata and persistent effects before any new authorization; no automatic retry or rollback.\n",
+      'First dev bootstrap stopped. Inspect metadata and persistent effects before any new authorization; no automatic retry or rollback.\n',
     );
     process.exitCode = 1;
   }

@@ -3,7 +3,7 @@
  * @packageDocumentation
  */
 
-import { PublicError } from "./types";
+import { PublicError } from './types';
 
 const encoder = new TextEncoder();
 
@@ -25,7 +25,7 @@ export function equal(a: string, b: string): boolean {
  * @returns The lowercase hexadecimal SHA-256 digest.
  */
 export async function sha256(value: string): Promise<string> {
-  return hex(await crypto.subtle.digest("SHA-256", encoder.encode(value)));
+  return hex(await crypto.subtle.digest('SHA-256', encoder.encode(value)));
 }
 
 /** Authenticate text with the supplied secret rather than exposing the secret itself.
@@ -35,13 +35,13 @@ export async function sha256(value: string): Promise<string> {
  */
 export async function hmac(secret: string, value: string): Promise<string> {
   const key = await crypto.subtle.importKey(
-    "raw",
+    'raw',
     encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
+    { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ["sign"],
+    ['sign'],
   );
-  return hex(await crypto.subtle.sign("HMAC", key, encoder.encode(value)));
+  return hex(await crypto.subtle.sign('HMAC', key, encoder.encode(value)));
 }
 
 /** Encode raw digest bytes as lowercase hexadecimal.
@@ -50,8 +50,8 @@ export async function hmac(secret: string, value: string): Promise<string> {
  */
 function hex(bytes: ArrayBuffer): string {
   return [...new Uint8Array(bytes)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 /** Decode base58 to validate exact key/signature byte lengths, not just a regex.
@@ -59,7 +59,7 @@ function hex(bytes: ArrayBuffer): string {
  * @returns Decoded byte length, or -1 for invalid or excessive input.
  */
 export function base58Length(value: string): number {
-  const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   if (!value || value.length > 100) return -1;
   let number = 0n;
   for (const char of value) {
@@ -80,12 +80,12 @@ export function base58Length(value: string): number {
  * @returns The syntactically valid bearer credential, not proof of authorization.
  */
 export function bearer(request: Request): string {
-  const header = request.headers.get("authorization") ?? "";
+  const header = request.headers.get('authorization') ?? '';
   const match = /^Bearer ([A-Za-z0-9_-]{32,256})$/.exec(header);
   if (!match)
     throw new PublicError(
-      "UNAUTHORIZED",
-      "A valid bearer credential is required.",
+      'UNAUTHORIZED',
+      'A valid bearer credential is required.',
       401,
     );
   return match[1];
@@ -96,14 +96,14 @@ export function bearer(request: Request): string {
  * @returns A parsed JSON object, rejecting non-objects and oversized bodies.
  */
 export async function jsonBody(
-  request: Pick<Request, "headers" | "body">,
+  request: Pick<Request, 'headers' | 'body'>,
 ): Promise<Record<string, unknown>> {
-  if (!request.headers.get("content-type")?.startsWith("application/json")) {
-    throw new PublicError("INVALID_REQUEST", "Use application/json.", 415);
+  if (!request.headers.get('content-type')?.startsWith('application/json')) {
+    throw new PublicError('INVALID_REQUEST', 'Use application/json.', 415);
   }
   const reader = request.body?.getReader();
   if (!reader)
-    throw new PublicError("INVALID_REQUEST", "A JSON body is required.");
+    throw new PublicError('INVALID_REQUEST', 'A JSON body is required.');
   const chunks: Uint8Array[] = [];
   let size = 0;
   for (;;) {
@@ -113,8 +113,8 @@ export async function jsonBody(
     if (size > 4096) {
       await reader.cancel();
       throw new PublicError(
-        "BODY_TOO_LARGE",
-        "Request body is too large.",
+        'BODY_TOO_LARGE',
+        'Request body is too large.',
         413,
       );
     }
@@ -128,10 +128,10 @@ export async function jsonBody(
   }
   try {
     const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
       throw new Error();
     return parsed as Record<string, unknown>;
   } catch {
-    throw new PublicError("INVALID_REQUEST", "A JSON object is required.");
+    throw new PublicError('INVALID_REQUEST', 'A JSON object is required.');
   }
 }

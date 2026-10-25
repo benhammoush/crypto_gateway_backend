@@ -2,16 +2,16 @@
  * @file
  */
 
-import { afterEach, expect, it, vi } from "vitest";
-import { readFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
-import { fileURLToPath, URL } from "node:url";
+import { afterEach, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath, URL } from 'node:url';
 import {
   CATALOG_SQL,
   MIGRATIONS_SQL,
   expectedSchema,
   inspectDevSchema,
-} from "../../scripts/inspect-dev-schema.mjs";
+} from '../../scripts/inspect-dev-schema.mjs';
 const { Response, AbortSignal } = globalThis;
 afterEach(() => vi.restoreAllMocks());
 
@@ -20,22 +20,22 @@ afterEach(() => vi.restoreAllMocks());
  */
 function environment() {
   return {
-    GITHUB_EVENT_NAME: "workflow_dispatch",
-    GITHUB_REF: "refs/heads/main",
-    GITHUB_SHA: "a".repeat(40),
-    PAYMENTS_ENABLED: "false",
-    CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
-    D1_DATABASE_ID: "11111111-1111-4111-8111-111111111111",
-    CLOUDFLARE_API_TOKEN: "synthetic-secret",
+    GITHUB_EVENT_NAME: 'workflow_dispatch',
+    GITHUB_REF: 'refs/heads/main',
+    GITHUB_SHA: 'a'.repeat(40),
+    PAYMENTS_ENABLED: 'false',
+    CLOUDFLARE_ACCOUNT_ID: 'a'.repeat(32),
+    D1_DATABASE_ID: '11111111-1111-4111-8111-111111111111',
+    CLOUDFLARE_API_TOKEN: 'synthetic-secret',
   };
 }
 
 /** Simulated Wrangler migration tracking table, never queried outside fixtures. */
 const migrationTable = {
-  type: "table",
-  name: "d1_migrations",
-  tbl_name: "d1_migrations",
-  sql: "CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT)",
+  type: 'table',
+  name: 'd1_migrations',
+  tbl_name: 'd1_migrations',
+  sql: 'CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT)',
 };
 
 /** Return a read-only D1 query envelope with no application data.
@@ -68,18 +68,18 @@ function provider(catalog = [], records = []) {
     expect(init.headers.authorization).toBe(
       `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
     );
-    expect(init.redirect).toBe("error");
+    expect(init.redirect).toBe('error');
     expect(init.signal).toBeInstanceOf(AbortSignal);
     if (url === endpoint) {
-      expect(init.method).toBe("GET");
+      expect(init.method).toBe('GET');
       expect(init.body).toBeUndefined();
       return Response.json({
         success: true,
-        result: { uuid: env.D1_DATABASE_ID, name: "crypto-gateway-dev" },
+        result: { uuid: env.D1_DATABASE_ID, name: 'crypto-gateway-dev' },
       });
     }
     expect(url).toBe(`${endpoint}/query`);
-    expect(init.method).toBe("POST");
+    expect(init.method).toBe('POST');
     const { sql, ...extra } = JSON.parse(init.body);
     expect(extra).toEqual({});
     expect([CATALOG_SQL, MIGRATIONS_SQL]).toContain(sql);
@@ -89,17 +89,17 @@ function provider(catalog = [], records = []) {
   });
 }
 
-it.each([undefined, "false", "true"])(
-  "ignores obsolete deploy flag %s and inspects schema without payment rows",
+it.each([undefined, 'false', 'true'])(
+  'ignores obsolete deploy flag %s and inspects schema without payment rows',
   async (enabled) => {
     const fetcher = provider();
-    const timeout = vi.spyOn(AbortSignal, "timeout");
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
     const result = await inspectDevSchema(
       { ...environment(), DEPLOY_ENABLED: enabled },
       fetcher,
     );
     expect(result).toMatchObject({
-      schemaState: "application-schema-absent",
+      schemaState: 'application-schema-absent',
       migrationTablePresent: false,
       observedApplicationObjectCount: 0,
       recordedExpectedMigrations: [],
@@ -107,19 +107,19 @@ it.each([undefined, "false", "true"])(
     });
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(timeout).toHaveBeenCalledWith(15_000);
-    expect(JSON.stringify(result)).not.toContain("synthetic-secret");
+    expect(JSON.stringify(result)).not.toContain('synthetic-secret');
   },
 );
 
-it("compares source-derived definitions and expected migration names without attesting or mutating", async () => {
+it('compares source-derived definitions and expected migration names without attesting or mutating', async () => {
   const source = expectedSchema();
   const fetcher = provider(
     [...source.definitions, migrationTable],
-    source.files.map((name) => ({ name, privateField: "do not print" })),
+    source.files.map((name) => ({ name, privateField: 'do not print' })),
   );
   const result = await inspectDevSchema(environment(), fetcher);
   expect(result).toMatchObject({
-    schemaState: "definitions-and-records-match",
+    schemaState: 'definitions-and-records-match',
     recordedExpectedMigrations: source.files,
     expectedMigrationSetDigest: source.digest,
     schemaAttestationRecorded: false,
@@ -130,11 +130,11 @@ it("compares source-derived definitions and expected migration names without att
   expect(fetcher).toHaveBeenCalledTimes(3);
 });
 
-it("keeps missing/inconsistent migration history distinct from schema acceptance", async () => {
+it('keeps missing/inconsistent migration history distinct from schema acceptance', async () => {
   const source = expectedSchema();
   expect(
     await inspectDevSchema(environment(), provider(source.definitions)),
-  ).toHaveProperty("schemaState", "definitions-present-records-incomplete");
+  ).toHaveProperty('schemaState', 'definitions-present-records-incomplete');
   expect(
     await inspectDevSchema(
       environment(),
@@ -143,33 +143,33 @@ it("keeps missing/inconsistent migration history distinct from schema acceptance
         source.files.map((name) => ({ name })),
       ),
     ),
-  ).toHaveProperty("schemaState", "records-without-application-schema");
+  ).toHaveProperty('schemaState', 'records-without-application-schema');
   expect(
     await inspectDevSchema(environment(), provider([migrationTable])),
   ).toMatchObject({
-    schemaState: "application-schema-absent",
+    schemaState: 'application-schema-absent',
     migrationTablePresent: true,
   });
 });
 
-it("rejects incomplete, rewritten, unexpected or malformed catalog definitions", async () => {
+it('rejects incomplete, rewritten, unexpected or malformed catalog definitions', async () => {
   const { definitions } = expectedSchema();
   for (const catalog of [
     definitions.slice(1),
     definitions.map((row, i) =>
-      i === 0 ? { ...row, sql: row.sql + " -- changed" } : row,
+      i === 0 ? { ...row, sql: row.sql + ' -- changed' } : row,
     ),
     [
       ...definitions,
       {
-        type: "table",
-        name: "private-provider-payload",
-        tbl_name: "other",
-        sql: "CREATE TABLE other (value TEXT)",
+        type: 'table',
+        name: 'private-provider-payload',
+        tbl_name: 'other',
+        sql: 'CREATE TABLE other (value TEXT)',
       },
     ],
     [...definitions, definitions[0]],
-    [{ type: "table", name: "payments", tbl_name: "payments", sql: null }],
+    [{ type: 'table', name: 'payments', tbl_name: 'payments', sql: null }],
   ]) {
     const fetcher = provider(catalog);
     await expect(inspectDevSchema(environment(), fetcher)).rejects.toThrow(
@@ -179,41 +179,41 @@ it("rejects incomplete, rewritten, unexpected or malformed catalog definitions",
   }
 });
 
-it("never queries a view masquerading as migration records", async () => {
+it('never queries a view masquerading as migration records', async () => {
   const fetcher = provider([
     {
       ...migrationTable,
-      type: "view",
-      sql: "CREATE VIEW d1_migrations AS SELECT name FROM payments",
+      type: 'view',
+      sql: 'CREATE VIEW d1_migrations AS SELECT name FROM payments',
     },
   ]);
   await expect(inspectDevSchema(environment(), fetcher)).rejects.toThrow(
-    "MIGRATION_TABLE_NOT_A_TABLE",
+    'MIGRATION_TABLE_NOT_A_TABLE',
   );
   expect(fetcher).toHaveBeenCalledTimes(2);
 });
 
-it("rejects unexpected, duplicate or malformed migration record names without reflecting them", async () => {
+it('rejects unexpected, duplicate or malformed migration record names without reflecting them', async () => {
   for (const records of [
-    [{ name: "private-provider-payload" }],
+    [{ name: 'private-provider-payload' }],
     [{ name: 42 }],
-    [{ name: "0001_payments.sql" }, { name: "0001_payments.sql" }],
+    [{ name: '0001_payments.sql' }, { name: '0001_payments.sql' }],
   ]) {
     await expect(
       inspectDevSchema(environment(), provider([migrationTable], records)),
-    ).rejects.toThrow("MIGRATION_RECORDS_REVIEW_REQUIRED");
+    ).rejects.toThrow('MIGRATION_RECORDS_REVIEW_REQUIRED');
   }
 });
 
-it("rejects unsafe context before any provider access", async () => {
+it('rejects unsafe context before any provider access', async () => {
   for (const [key, value] of [
-    ["GITHUB_EVENT_NAME", "push"],
-    ["GITHUB_REF", "refs/heads/feature"],
-    ["GITHUB_SHA", "main"],
-    ["PAYMENTS_ENABLED", "true"],
-    ["CLOUDFLARE_ACCOUNT_ID", "../other"],
-    ["D1_DATABASE_ID", "../other"],
-    ["CLOUDFLARE_API_TOKEN", ""],
+    ['GITHUB_EVENT_NAME', 'push'],
+    ['GITHUB_REF', 'refs/heads/feature'],
+    ['GITHUB_SHA', 'main'],
+    ['PAYMENTS_ENABLED', 'true'],
+    ['CLOUDFLARE_ACCOUNT_ID', '../other'],
+    ['D1_DATABASE_ID', '../other'],
+    ['CLOUDFLARE_API_TOKEN', ''],
   ]) {
     const fetcher = vi.fn();
     await expect(
@@ -223,24 +223,24 @@ it("rejects unsafe context before any provider access", async () => {
   }
 });
 
-it("verifies exact dev database metadata before issuing any SELECT", async () => {
+it('verifies exact dev database metadata before issuing any SELECT', async () => {
   const fetcher = vi.fn(async () =>
     Response.json({
       success: true,
       result: {
         uuid: environment().D1_DATABASE_ID,
-        name: "crypto-gateway-production",
+        name: 'crypto-gateway-production',
       },
     }),
   );
   await expect(inspectDevSchema(environment(), fetcher)).rejects.toThrow(
-    "D1_IDENTITY_MISMATCH",
+    'D1_IDENTITY_MISMATCH',
   );
   expect(fetcher).toHaveBeenCalledOnce();
 });
 
 it.each([401, 403, 404, 429, 500])(
-  "stops on query HTTP %s without retrying or echoing the response",
+  'stops on query HTTP %s without retrying or echoing the response',
   async (status) => {
     const fetcher = provider()
       .mockImplementationOnce(async () =>
@@ -248,12 +248,12 @@ it.each([401, 403, 404, 429, 500])(
           success: true,
           result: {
             uuid: environment().D1_DATABASE_ID,
-            name: "crypto-gateway-dev",
+            name: 'crypto-gateway-dev',
           },
         }),
       )
       .mockImplementationOnce(
-        async () => new Response("private-provider-payload", { status }),
+        async () => new Response('private-provider-payload', { status }),
       );
     await expect(inspectDevSchema(environment(), fetcher)).rejects.toThrow(
       `SCHEMA_QUERY_HTTP_${status}`,
@@ -262,7 +262,7 @@ it.each([401, 403, 404, 429, 500])(
   },
 );
 
-it("rejects reported writes, missing write metrics, excess rows and malformed query results", async () => {
+it('rejects reported writes, missing write metrics, excess rows and malformed query results', async () => {
   for (const response of [
     queryResponse([], { changed_db: true }),
     queryResponse([], { rows_written: 1 }),
@@ -281,7 +281,7 @@ it("rejects reported writes, missing write metrics, excess rows and malformed qu
           success: true,
           result: {
             uuid: environment().D1_DATABASE_ID,
-            name: "crypto-gateway-dev",
+            name: 'crypto-gateway-dev',
           },
         }),
       )
@@ -293,7 +293,7 @@ it("rejects reported writes, missing write metrics, excess rows and malformed qu
   }
 });
 
-it("cancels oversized response streams", async () => {
+it('cancels oversized response streams', async () => {
   let cancelled = false;
   const stream = new globalThis.ReadableStream({
     /** Feed the controlled stream used by the response-size test.
@@ -312,30 +312,30 @@ it("cancels oversized response streams", async () => {
       environment(),
       vi.fn(async () => new Response(stream)),
     ),
-  ).rejects.toThrow("D1_METADATA_RESPONSE_TOO_LARGE");
+  ).rejects.toThrow('D1_METADATA_RESPONSE_TOO_LARGE');
   expect(cancelled).toBe(true);
 });
 
-it("never prints raw network errors or secrets through the CLI", () => {
+it('never prints raw network errors or secrets through the CLI', () => {
   const module = new URL(
-    "../../scripts/inspect-dev-schema.mjs",
+    '../../scripts/inspect-dev-schema.mjs',
     import.meta.url,
   );
   const source = `process.argv[1] = ${JSON.stringify(fileURLToPath(module))}; globalThis.fetch = async () => { throw new Error('private-provider-payload synthetic-secret'); }; await import(${JSON.stringify(module.href)});`;
   const result = spawnSync(
     process.execPath,
-    ["--input-type=module", "-e", source],
-    { env: environment(), encoding: "utf8" },
+    ['--input-type=module', '-e', source],
+    { env: environment(), encoding: 'utf8' },
   );
   expect(result.status).toBe(1);
-  expect(result.stderr).toContain("INSPECTION_FAILED");
+  expect(result.stderr).toContain('INSPECTION_FAILED');
   expect(result.stdout + result.stderr).not.toMatch(
     /private-provider-payload|synthetic-secret/,
   );
 });
 
-it("retires the hosted schema-inspection entry point without removing the CLI", () => {
+it('retires the hosted schema-inspection entry point without removing the CLI', () => {
   expect(() =>
-    readFileSync(".github/workflows/inspect-dev-schema.yml"),
-  ).toThrow(expect.objectContaining({ code: "ENOENT" }));
+    readFileSync('.github/workflows/inspect-dev-schema.yml'),
+  ).toThrow(expect.objectContaining({ code: 'ENOENT' }));
 });

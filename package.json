@@ -3,22 +3,25 @@
   "version": "0.2.1",
   "private": true,
   "type": "module",
+  "packageManager": "npm@11.19.0",
   "engines": {
-    "node": "24.x"
+    "node": "24.x",
+    "npm": "11.19.0"
   },
   "scripts": {
-    "ci:quality": "npm run check && npm run audit:dependencies",
+    "ci:quality": "npm run check",
     "audit:dependencies": "npm audit && npm audit --omit=dev",
     "dev": "wrangler dev --local --port 8787 --test-scheduled",
     "dev:scheduler": "node scripts/local-scheduler.mjs",
     "db:local": "wrangler d1 migrations apply DB --local",
     "credential:hash": "node scripts/hash-credential.mjs",
     "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && vitest run",
     "build": "wrangler deploy --dry-run --outdir dist",
-    "check": "npm run lint && npm run format:check && npm run typecheck && npm test"
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm test && npm run audit:dependencies"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261004.1",
