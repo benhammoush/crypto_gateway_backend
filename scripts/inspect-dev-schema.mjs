@@ -2,17 +2,17 @@
  * Inventory only dev schema definitions and migration names; never attest or migrate D1.
  * @file
  */
-import { appendFileSync, readFileSync, readdirSync } from "node:fs";
-import { Buffer } from "node:buffer";
-import { DatabaseSync } from "node:sqlite";
-import { pathToFileURL } from "node:url";
-import { migrationDigest } from "./check-delivery.mjs";
+import { appendFileSync, readFileSync, readdirSync } from 'node:fs';
+import { Buffer } from 'node:buffer';
+import { DatabaseSync } from 'node:sqlite';
+import { pathToFileURL } from 'node:url';
+import { migrationDigest } from './check-delivery.mjs';
 
 // No caller-supplied SQL, parameters, paths or row-table queries are accepted.
 export const CATALOG_SQL =
   "SELECT type, name, tbl_name, sql FROM sqlite_schema WHERE name NOT GLOB 'sqlite_*' AND name NOT GLOB '_cf_*' ORDER BY type, name LIMIT 129";
 export const MIGRATIONS_SQL =
-  "SELECT name FROM d1_migrations ORDER BY id LIMIT 129";
+  'SELECT name FROM d1_migrations ORDER BY id LIMIT 129';
 /** Controlled schema-inspection failure safe for the delivery diagnostic boundary. */
 class InspectionError extends Error {}
 
@@ -28,18 +28,18 @@ function requireValue(condition, code) {
  * @returns Expected source migrations and schema definitions derived locally.
  */
 export function expectedSchema() {
-  const files = readdirSync("migrations")
-    .filter((name) => name.endsWith(".sql"))
+  const files = readdirSync('migrations')
+    .filter((name) => name.endsWith('.sql'))
     .sort();
-  requireValue(files.length > 0, "SOURCE_MIGRATIONS_MISSING");
-  const memory = new DatabaseSync(":memory:");
+  requireValue(files.length > 0, 'SOURCE_MIGRATIONS_MISSING');
+  const memory = new DatabaseSync(':memory:');
   try {
     for (const file of files)
-      memory.exec(readFileSync(`migrations/${file}`, "utf8"));
+      memory.exec(readFileSync(`migrations/${file}`, 'utf8'));
     const definitions = memory.prepare(CATALOG_SQL).all();
     requireValue(
       definitions.length > 0 && definitions.length <= 128,
-      "SOURCE_SCHEMA_UNSUPPORTED",
+      'SOURCE_SCHEMA_UNSUPPORTED',
     );
     return { files, definitions, digest: migrationDigest() };
   } finally {
@@ -57,13 +57,13 @@ export function expectedSchema() {
  */
 async function readProvider(fetcher, url, token, label, sql) {
   const response = await fetcher(url, {
-    method: sql === undefined ? "GET" : "POST",
+    method: sql === undefined ? 'GET' : 'POST',
     headers: {
       authorization: `Bearer ${token}`,
-      ...(sql === undefined ? {} : { "content-type": "application/json" }),
+      ...(sql === undefined ? {} : { 'content-type': 'application/json' }),
     },
     ...(sql === undefined ? {} : { body: JSON.stringify({ sql }) }),
-    redirect: "error",
+    redirect: 'error',
     signal: globalThis.AbortSignal.timeout(15_000),
   });
   if (!response.ok) {
@@ -84,7 +84,7 @@ async function readProvider(fetcher, url, token, label, sql) {
   } finally {
     await reader.cancel();
   }
-  const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
   requireValue(body?.success === true, `${label}_REJECTED`);
   return body.result;
 }
@@ -99,13 +99,13 @@ async function readProvider(fetcher, url, token, label, sql) {
 async function queryCatalog(fetcher, endpoint, token, sql) {
   requireValue(
     sql === CATALOG_SQL || sql === MIGRATIONS_SQL,
-    "QUERY_NOT_ALLOWED",
+    'QUERY_NOT_ALLOWED',
   );
   const result = await readProvider(
     fetcher,
     endpoint,
     token,
-    "SCHEMA_QUERY",
+    'SCHEMA_QUERY',
     sql,
   );
   requireValue(
@@ -113,14 +113,14 @@ async function queryCatalog(fetcher, endpoint, token, sql) {
       result.length === 1 &&
       result[0]?.success === true &&
       Array.isArray(result[0].results),
-    "QUERY_RESPONSE_INVALID",
+    'QUERY_RESPONSE_INVALID',
   );
   const { meta, results } = result[0];
   requireValue(
     meta?.changed_db === false && meta.changes === 0 && meta.rows_written === 0,
-    "QUERY_WRITE_METRICS_NOT_READ_ONLY",
+    'QUERY_WRITE_METRICS_NOT_READ_ONLY',
   );
-  requireValue(results.length <= 128, "CATALOG_LIMIT_EXCEEDED");
+  requireValue(results.length <= 128, 'CATALOG_LIMIT_EXCEEDED');
   return results;
 }
 
@@ -131,22 +131,22 @@ async function queryCatalog(fetcher, endpoint, token, sql) {
  */
 export async function inspectDevSchema(env, fetcher = globalThis.fetch) {
   requireValue(
-    env.GITHUB_EVENT_NAME === "workflow_dispatch" &&
-      env.GITHUB_REF === "refs/heads/main" &&
-      /^[a-f0-9]{40}$/.test(env.GITHUB_SHA ?? ""),
-    "MANUAL_MAIN_REQUIRED",
+    env.GITHUB_EVENT_NAME === 'workflow_dispatch' &&
+      env.GITHUB_REF === 'refs/heads/main' &&
+      /^[a-f0-9]{40}$/.test(env.GITHUB_SHA ?? ''),
+    'MANUAL_MAIN_REQUIRED',
   );
   requireValue(
-    !env.PAYMENTS_ENABLED || env.PAYMENTS_ENABLED === "false",
-    "PAYMENTS_MUST_REMAIN_DISABLED",
+    !env.PAYMENTS_ENABLED || env.PAYMENTS_ENABLED === 'false',
+    'PAYMENTS_MUST_REMAIN_DISABLED',
   );
   requireValue(
-    /^[a-f0-9]{32}$/.test(env.CLOUDFLARE_ACCOUNT_ID ?? "") &&
+    /^[a-f0-9]{32}$/.test(env.CLOUDFLARE_ACCOUNT_ID ?? '') &&
       /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(
-        env.D1_DATABASE_ID ?? "",
+        env.D1_DATABASE_ID ?? '',
       ) &&
       Boolean(env.CLOUDFLARE_API_TOKEN),
-    "DEV_CONFIGURATION_MISSING_OR_INVALID",
+    'DEV_CONFIGURATION_MISSING_OR_INVALID',
   );
   const expected = expectedSchema();
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/d1/database/${env.D1_DATABASE_ID}`;
@@ -154,12 +154,12 @@ export async function inspectDevSchema(env, fetcher = globalThis.fetch) {
     fetcher,
     endpoint,
     env.CLOUDFLARE_API_TOKEN,
-    "D1_METADATA",
+    'D1_METADATA',
   );
   requireValue(
     database?.uuid === env.D1_DATABASE_ID &&
-      database.name === "crypto-gateway-dev",
-    "D1_IDENTITY_MISMATCH",
+      database.name === 'crypto-gateway-dev',
+    'D1_IDENTITY_MISMATCH',
   );
   const catalog = await queryCatalog(
     fetcher,
@@ -171,21 +171,21 @@ export async function inspectDevSchema(env, fetcher = globalThis.fetch) {
     catalog.every(
       (row) =>
         row &&
-        typeof row.name === "string" &&
-        typeof row.type === "string" &&
-        typeof row.tbl_name === "string" &&
-        typeof row.sql === "string",
+        typeof row.name === 'string' &&
+        typeof row.type === 'string' &&
+        typeof row.tbl_name === 'string' &&
+        typeof row.sql === 'string',
     ) && new Set(catalog.map((row) => row.name)).size === catalog.length,
-    "CATALOG_RESPONSE_INVALID",
+    'CATALOG_RESPONSE_INVALID',
   );
-  const migrationTable = catalog.find((row) => row.name === "d1_migrations");
+  const migrationTable = catalog.find((row) => row.name === 'd1_migrations');
   requireValue(
     !migrationTable ||
-      (migrationTable.type === "table" &&
-        migrationTable.tbl_name === "d1_migrations"),
-    "MIGRATION_TABLE_NOT_A_TABLE",
+      (migrationTable.type === 'table' &&
+        migrationTable.tbl_name === 'd1_migrations'),
+    'MIGRATION_TABLE_NOT_A_TABLE',
   );
-  const application = catalog.filter((row) => row.name !== "d1_migrations");
+  const application = catalog.filter((row) => row.name !== 'd1_migrations');
   // Exact source-derived definitions only: equivalent rewrites still need operator review.
   requireValue(
     application.length === 0 ||
@@ -199,7 +199,7 @@ export async function inspectDevSchema(env, fetcher = globalThis.fetch) {
               definition.sql === row.sql,
           ),
         )),
-    "APPLICATION_SCHEMA_REVIEW_REQUIRED",
+    'APPLICATION_SCHEMA_REVIEW_REQUIRED',
   );
   const records = migrationTable
     ? await queryCatalog(
@@ -213,10 +213,10 @@ export async function inspectDevSchema(env, fetcher = globalThis.fetch) {
     records.every(
       (row) =>
         row &&
-        typeof row.name === "string" &&
+        typeof row.name === 'string' &&
         expected.files.includes(row.name),
     ) && new Set(records.map((row) => row.name)).size === records.length,
-    "MIGRATION_RECORDS_REVIEW_REQUIRED",
+    'MIGRATION_RECORDS_REVIEW_REQUIRED',
   );
   const recordsMatch = records.length === expected.files.length;
   return {
@@ -225,11 +225,11 @@ export async function inspectDevSchema(env, fetcher = globalThis.fetch) {
     schemaState:
       application.length === 0
         ? records.length === 0
-          ? "application-schema-absent"
-          : "records-without-application-schema"
+          ? 'application-schema-absent'
+          : 'records-without-application-schema'
         : recordsMatch
-          ? "definitions-and-records-match"
-          : "definitions-present-records-incomplete",
+          ? 'definitions-and-records-match'
+          : 'definitions-present-records-incomplete',
     migrationTablePresent: Boolean(migrationTable),
     observedApplicationObjectCount: application.length,
     recordedExpectedMigrations: records.map((row) => row.name).sort(),
@@ -250,7 +250,7 @@ if (
     );
   } catch (error) {
     const code =
-      error instanceof InspectionError ? error.message : "INSPECTION_FAILED";
+      error instanceof InspectionError ? error.message : 'INSPECTION_FAILED';
     process.stderr.write(
       `Dev schema inspection stopped: ${code}. Only fixed metadata SELECTs were permitted; no mutation SQL was requested. Inspect any unknown outcome before further action.\n`,
     );

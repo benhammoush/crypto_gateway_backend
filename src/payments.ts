@@ -3,15 +3,15 @@
  * @packageDocumentation
  */
 
-import { formatSol, getQuote, lamportsForUsd } from "./price";
-import { hmac, sha256 } from "./security";
+import { formatSol, getQuote, lamportsForUsd } from './price';
+import { hmac, sha256 } from './security';
 import {
   assertDevnet,
   ParsedTransaction,
   rpc,
   validateTransfer,
-} from "./solana";
-import { Config, Merchant, Payment, PublicError } from "./types";
+} from './solana';
+import { Config, Merchant, Payment, PublicError } from './types';
 
 const EXPIRY_MS = 15 * 60_000;
 const REVIEW_WINDOW_MS = 24 * 60 * 60_000;
@@ -23,11 +23,11 @@ const REVIEW_WINDOW_MS = 24 * 60 * 60_000;
  */
 export async function getPayment(db: D1Database, id: string): Promise<Payment> {
   const payment = await db
-    .prepare("SELECT * FROM payments WHERE id = ?")
+    .prepare('SELECT * FROM payments WHERE id = ?')
     .bind(id)
     .first<Payment>();
   if (!payment)
-    throw new PublicError("NOT_FOUND", "Payment was not found.", 404);
+    throw new PublicError('NOT_FOUND', 'Payment was not found.', 404);
   return payment;
 }
 
@@ -61,29 +61,29 @@ export async function paymentView(
 ) {
   const attempts = await db
     .prepare(
-      "SELECT signature, state, reason FROM attempts WHERE payment_id = ? ORDER BY created_at",
+      'SELECT signature, state, reason FROM attempts WHERE payment_id = ? ORDER BY created_at',
     )
     .bind(payment.id)
     .all<{ signature: string; state: string; reason: string | null }>();
   const status = payment.signature
-    ? "settled"
-    : attempts.results.some((attempt) => attempt.state === "pending")
-      ? "verifying"
+    ? 'settled'
+    : attempts.results.some((attempt) => attempt.state === 'pending')
+      ? 'verifying'
       : Date.now() > payment.expires_at
-        ? "expired"
-        : "pending";
+        ? 'expired'
+        : 'pending';
   return {
     id: payment.id,
     merchantReference: payment.merchant_reference,
     usdCents: payment.usd_cents,
     lamports: payment.lamports,
     displaySol: formatSol(payment.lamports),
-    network: "solana-devnet",
-    asset: "SOL",
+    network: 'solana-devnet',
+    asset: 'SOL',
     recipient: payment.recipient,
     // Backend RPC may contain provider credentials. Never return it to the browser.
     memo: `crypto_gateway:${payment.id}`,
-    rpcUrl: "https://api.devnet.solana.com",
+    rpcUrl: 'https://api.devnet.solana.com',
     quote: { usdPrice: payment.usd_price, blockId: payment.price_block_id },
     createdAt: payment.created_at,
     expiresAt: payment.expires_at,
@@ -116,23 +116,23 @@ export async function createPayment(
 ) {
   if (!/^[A-Za-z0-9_-]{8,128}$/.test(key))
     throw new PublicError(
-      "INVALID_IDEMPOTENCY_KEY",
-      "Supply an Idempotency-Key of 8 to 128 characters.",
+      'INVALID_IDEMPOTENCY_KEY',
+      'Supply an Idempotency-Key of 8 to 128 characters.',
     );
   if (
     Object.keys(input).some(
-      (name) => !["usdCents", "merchantReference"].includes(name),
+      (name) => !['usdCents', 'merchantReference'].includes(name),
     ) ||
-    typeof input.usdCents !== "number" ||
+    typeof input.usdCents !== 'number' ||
     !Number.isSafeInteger(input.usdCents) ||
     input.usdCents < 1 ||
     input.usdCents > 1_000_000 ||
-    typeof input.merchantReference !== "string" ||
+    typeof input.merchantReference !== 'string' ||
     !/^[A-Za-z0-9_.:-]{1,128}$/.test(input.merchantReference)
   ) {
     throw new PublicError(
-      "INVALID_REQUEST",
-      "Supply usdCents (1–1000000) and an opaque merchantReference (1–128 characters).",
+      'INVALID_REQUEST',
+      'Supply usdCents (1–1000000) and an opaque merchantReference (1–128 characters).',
     );
   }
   const hash = await sha256(
@@ -140,7 +140,7 @@ export async function createPayment(
   );
   let existing = await db
     .prepare(
-      "SELECT * FROM payments WHERE merchant_id = ? AND idempotency_key = ?",
+      'SELECT * FROM payments WHERE merchant_id = ? AND idempotency_key = ?',
     )
     .bind(merchant.id, key)
     .first<Payment>();
@@ -172,16 +172,16 @@ export async function createPayment(
       .run();
     existing = await db
       .prepare(
-        "SELECT * FROM payments WHERE merchant_id = ? AND idempotency_key = ?",
+        'SELECT * FROM payments WHERE merchant_id = ? AND idempotency_key = ?',
       )
       .bind(merchant.id, key)
       .first<Payment>();
   }
-  if (!existing) throw new Error("Payment insert failed.");
+  if (!existing) throw new Error('Payment insert failed.');
   if (existing.request_hash !== hash)
     throw new PublicError(
-      "IDEMPOTENCY_CONFLICT",
-      "This idempotency key has different payment inputs.",
+      'IDEMPOTENCY_CONFLICT',
+      'This idempotency key has different payment inputs.',
       409,
     );
   return paymentView(db, config, existing, true);
@@ -203,7 +203,7 @@ export async function settle(
     await db.batch([
       db
         .prepare(
-          "UPDATE payments SET signature = ?, payer = ?, settled_at = ? WHERE id = ? AND signature IS NULL",
+          'UPDATE payments SET signature = ?, payer = ?, settled_at = ? WHERE id = ? AND signature IS NULL',
         )
         .bind(signature, payer, Date.now(), payment.id),
       db
@@ -224,16 +224,16 @@ export async function settle(
     ]);
   } catch {
     throw new PublicError(
-      "SETTLEMENT_CONFLICT",
-      "Settlement could not be recorded. Retrieve payment status before retrying.",
+      'SETTLEMENT_CONFLICT',
+      'Settlement could not be recorded. Retrieve payment status before retrying.',
       409,
     );
   }
   const current = await getPayment(db, payment.id);
   if (current.signature !== signature)
     throw new PublicError(
-      "ALREADY_SETTLED",
-      "This payment has already settled with another transaction.",
+      'ALREADY_SETTLED',
+      'This payment has already settled with another transaction.',
       409,
     );
 }
@@ -253,16 +253,16 @@ export async function submit(
   if (payment.signature) {
     if (payment.signature !== signature)
       throw new PublicError(
-        "ALREADY_SETTLED",
-        "Payment is already settled.",
+        'ALREADY_SETTLED',
+        'Payment is already settled.',
         409,
       );
     return;
   }
   if (Date.now() > payment.expires_at + REVIEW_WINDOW_MS)
     throw new PublicError(
-      "MANUAL_REVIEW",
-      "Automatic verification has ended. Contact the merchant.",
+      'MANUAL_REVIEW',
+      'Automatic verification has ended. Contact the merchant.',
       422,
     );
   await db
@@ -275,17 +275,17 @@ export async function submit(
     .run();
   const attempt = await db
     .prepare(
-      "SELECT state FROM attempts WHERE payment_id = ? AND signature = ?",
+      'SELECT state FROM attempts WHERE payment_id = ? AND signature = ?',
     )
     .bind(payment.id, signature)
     .first<{ state: string }>();
   if (!attempt)
     throw new PublicError(
-      "ATTEMPT_LIMIT",
-      "Too many transaction candidates. Contact the merchant.",
+      'ATTEMPT_LIMIT',
+      'Too many transaction candidates. Contact the merchant.',
       429,
     );
-  if (attempt.state === "pending")
+  if (attempt.state === 'pending')
     await verifyCandidate(db, config, payment, signature);
 }
 
@@ -312,16 +312,16 @@ async function verifyCandidate(
   }
   await db
     .prepare(
-      "UPDATE attempts SET next_attempt_at = ? WHERE payment_id = ? AND signature = ?",
+      'UPDATE attempts SET next_attempt_at = ? WHERE payment_id = ? AND signature = ?',
     )
     .bind(Date.now() + 30_000, payment.id, signature)
     .run();
   await assertDevnet(config.rpc);
-  const tx = await rpc<ParsedTransaction | null>(config.rpc, "getTransaction", [
+  const tx = await rpc<ParsedTransaction | null>(config.rpc, 'getTransaction', [
     signature,
     {
-      encoding: "jsonParsed",
-      commitment: "finalized",
+      encoding: 'jsonParsed',
+      commitment: 'finalized',
       maxSupportedTransactionVersion: 0,
     },
   ]);

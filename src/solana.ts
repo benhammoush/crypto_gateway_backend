@@ -3,13 +3,13 @@
  * @packageDocumentation
  */
 
-import { Payment, PublicError } from "./types";
-import { base58Length } from "./security";
+import { Payment, PublicError } from './types';
+import { base58Length } from './security';
 
-export const DEVNET_GENESIS = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
-export const MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
-const SYSTEM_PROGRAM = "11111111111111111111111111111111";
-const COMPUTE_BUDGET_PROGRAM = "ComputeBudget111111111111111111111111111111";
+export const DEVNET_GENESIS = 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
+export const MEMO_PROGRAM = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
+const SYSTEM_PROGRAM = '11111111111111111111111111111111';
+const COMPUTE_BUDGET_PROGRAM = 'ComputeBudget111111111111111111111111111111';
 
 /** Parsed instruction fields consumed by transfer validation. */
 interface ParsedInstruction {
@@ -49,19 +49,19 @@ export async function rpc<T>(
 ): Promise<T> {
   try {
     const response = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      redirect: "manual",
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      redirect: 'manual',
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
       signal: AbortSignal.timeout(8000),
     });
     const body = await response.json<{ error?: unknown; result?: T }>();
-    if (!response.ok || body.error || !("result" in body)) throw new Error();
+    if (!response.ok || body.error || !('result' in body)) throw new Error();
     return body.result as T;
   } catch {
     throw new PublicError(
-      "RPC_UNAVAILABLE",
-      "Solana verification is temporarily unavailable.",
+      'RPC_UNAVAILABLE',
+      'Solana verification is temporarily unavailable.',
       503,
     );
   }
@@ -71,10 +71,10 @@ export async function rpc<T>(
  * @param url - Operator RPC endpoint whose reported network must be Devnet.
  */
 export async function assertDevnet(url: string): Promise<void> {
-  if ((await rpc<string>(url, "getGenesisHash")) !== DEVNET_GENESIS) {
+  if ((await rpc<string>(url, 'getGenesisHash')) !== DEVNET_GENESIS) {
     throw new PublicError(
-      "WRONG_NETWORK",
-      "Payment processing requires Solana Devnet.",
+      'WRONG_NETWORK',
+      'Payment processing requires Solana Devnet.',
       503,
     );
   }
@@ -90,13 +90,13 @@ function computeBudgetKind(instruction: ParsedInstruction): number | null {
     instruction.parsed !== undefined ||
     !Array.isArray(instruction.accounts) ||
     instruction.accounts.length !== 0 ||
-    typeof instruction.data !== "string" ||
+    typeof instruction.data !== 'string' ||
     instruction.data.length > 13
   )
     return null;
   const length = base58Length(instruction.data);
   if (length !== 5 && length !== 9) return null;
-  const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   let bytes = 0n;
   for (const char of instruction.data)
     bytes = bytes * 58n + BigInt(alphabet.indexOf(char));
@@ -120,8 +120,8 @@ export function validateTransfer(
   /** Reject the transaction instead of accepting incomplete validation evidence. */
   const reject = () => {
     throw new PublicError(
-      "TRANSFER_REJECTED",
-      "The transfer does not match this payment request.",
+      'TRANSFER_REJECTED',
+      'The transfer does not match this payment request.',
       422,
     );
   };
@@ -170,7 +170,7 @@ export function validateTransfer(
     | undefined;
   if (
     transfer.programId !== SYSTEM_PROGRAM ||
-    parsed?.type !== "transfer" ||
+    parsed?.type !== 'transfer' ||
     parsed.info?.source !== payer.pubkey ||
     parsed.info.destination !== payment.recipient ||
     !Number.isSafeInteger(parsed.info.lamports) ||

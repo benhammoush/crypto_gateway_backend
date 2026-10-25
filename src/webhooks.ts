@@ -3,8 +3,8 @@
  * @packageDocumentation
  */
 
-import { hmac } from "./security";
-import { Config } from "./types";
+import { hmac } from './security';
+import { Config } from './types';
 
 /** Durable settlement-outbox record with delivery retry state. */
 interface EventRow {
@@ -45,7 +45,7 @@ export async function deliverWebhooks(
     .prepare(
       `SELECT id, merchant_id, payload, attempts FROM events
     WHERE delivered_at IS NULL AND next_attempt_at <= ? AND lease_until < ? AND attempts < 12
-      AND merchant_id IN (${enabled.map(() => "?").join(",")})
+      AND merchant_id IN (${enabled.map(() => '?').join(',')})
     ORDER BY next_attempt_at LIMIT 10`,
     )
     .bind(now, now, ...enabled)
@@ -67,13 +67,13 @@ export async function deliverWebhooks(
     let delivered = false;
     try {
       const response = await fetch(merchant.webhookUrl, {
-        method: "POST",
-        redirect: "manual",
+        method: 'POST',
+        redirect: 'manual',
         signal: AbortSignal.timeout(8000),
         headers: {
-          "content-type": "application/json",
-          "crypto-gateway-event-id": event.id,
-          "crypto-gateway-signature": await webhookSignature(
+          'content-type': 'application/json',
+          'crypto-gateway-event-id': event.id,
+          'crypto-gateway-signature': await webhookSignature(
             merchant.webhookSecret,
             Math.floor(Date.now() / 1000),
             event.payload,
@@ -95,7 +95,7 @@ export async function deliverWebhooks(
       .bind(
         delivered ? Date.now() : null,
         Date.now() + delay,
-        delivered ? null : "DELIVERY_FAILED",
+        delivered ? null : 'DELIVERY_FAILED',
         event.id,
         lease,
       )

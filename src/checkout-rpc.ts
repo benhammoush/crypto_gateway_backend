@@ -3,9 +3,9 @@
  * @packageDocumentation
  */
 
-import { base58Length, jsonBody } from "./security";
-import { DEVNET_GENESIS } from "./solana";
-import { Payment, PublicError } from "./types";
+import { base58Length, jsonBody } from './security';
+import { DEVNET_GENESIS } from './solana';
+import { Payment, PublicError } from './types';
 
 /** Forward only bounded, read-only wallet preparation calls to operator configuration.
  * @param url - Operator-configured RPC endpoint, never a browser-supplied URL.
@@ -20,56 +20,56 @@ export async function checkoutRpc(
 ) {
   if (payment.signature || Date.now() >= payment.expires_at)
     throw new PublicError(
-      "NOT_PAYABLE",
-      "This payment is not currently payable.",
+      'NOT_PAYABLE',
+      'This payment is not currently payable.',
       409,
     );
   const { id, method, params } = input;
   const option: unknown = Array.isArray(params) ? params[0] : undefined;
   if (
     Object.keys(input).some(
-      (key) => !["jsonrpc", "id", "method", "params"].includes(key),
+      (key) => !['jsonrpc', 'id', 'method', 'params'].includes(key),
     ) ||
-    input.jsonrpc !== "2.0" ||
+    input.jsonrpc !== '2.0' ||
     !(
-      (typeof id === "string" && id.length > 0 && id.length <= 64) ||
-      (typeof id === "number" && Number.isSafeInteger(id))
+      (typeof id === 'string' && id.length > 0 && id.length <= 64) ||
+      (typeof id === 'number' && Number.isSafeInteger(id))
     ) ||
     !Array.isArray(params) ||
     !(
-      (method === "getGenesisHash" && params.length === 0) ||
-      (method === "getLatestBlockhash" &&
+      (method === 'getGenesisHash' && params.length === 0) ||
+      (method === 'getLatestBlockhash' &&
         params.length === 1 &&
         option &&
-        typeof option === "object" &&
+        typeof option === 'object' &&
         !Array.isArray(option) &&
         Object.keys(option).length === 1 &&
-        "commitment" in option &&
-        option.commitment === "finalized")
+        'commitment' in option &&
+        option.commitment === 'finalized')
     )
   )
     throw new PublicError(
-      "INVALID_RPC_REQUEST",
-      "Use an approved wallet preparation RPC call.",
+      'INVALID_RPC_REQUEST',
+      'Use an approved wallet preparation RPC call.',
     );
 
   let result: unknown;
   try {
     const response = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
       signal: AbortSignal.timeout(8000),
-      redirect: "manual",
+      redirect: 'manual',
     });
     if (!response.ok) {
       await response.body?.cancel();
       throw new Error();
     }
     const body = await jsonBody(response);
-    if (body.error || body.jsonrpc !== "2.0" || body.id !== 1)
+    if (body.error || body.jsonrpc !== '2.0' || body.id !== 1)
       throw new Error();
-    if (method === "getGenesisHash") {
+    if (method === 'getGenesisHash') {
       if (body.result !== DEVNET_GENESIS) throw new Error();
       result = DEVNET_GENESIS;
     } else {
@@ -81,12 +81,12 @@ export async function checkoutRpc(
       const blockhash = value?.value?.blockhash;
       const height = value?.value?.lastValidBlockHeight;
       if (
-        typeof slot !== "number" ||
+        typeof slot !== 'number' ||
         !Number.isSafeInteger(slot) ||
         slot < 0 ||
-        typeof blockhash !== "string" ||
+        typeof blockhash !== 'string' ||
         base58Length(blockhash) !== 32 ||
-        typeof height !== "number" ||
+        typeof height !== 'number' ||
         !Number.isSafeInteger(height) ||
         height < 1
       )
@@ -99,10 +99,10 @@ export async function checkoutRpc(
   } catch {
     // Do not reflect provider bodies, URLs, headers or error messages containing keys.
     throw new PublicError(
-      "RPC_UNAVAILABLE",
-      "Solana verification is temporarily unavailable.",
+      'RPC_UNAVAILABLE',
+      'Solana verification is temporarily unavailable.',
       503,
     );
   }
-  return { jsonrpc: "2.0", id, result };
+  return { jsonrpc: '2.0', id, result };
 }

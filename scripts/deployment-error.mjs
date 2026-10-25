@@ -1,15 +1,15 @@
 /** Retain fixed failure classifications, never raw subprocess output or credentials.
  * @file
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync } from 'node:child_process';
 import {
   mkdtempSync,
   readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
-} from "node:fs";
-import { dirname, join } from "node:path";
+} from 'node:fs';
+import { dirname, join } from 'node:path';
 
 // Unknown provider numbers are deliberately omitted rather than treated as safe text.
 const providerCodes = new Set([
@@ -22,19 +22,19 @@ const providerCodes = new Set([
  */
 export function classifyDeploymentError(error) {
   const output = [error?.stdout, error?.stderr]
-    .filter((value) => typeof value === "string")
+    .filter((value) => typeof value === 'string')
     .map((value) => value.slice(0, 1_048_576))
-    .join("\n");
+    .join('\n');
   const codes = [...output.matchAll(/\[code:\s*(\d{4,6})\]/g)]
     .map((match) => Number(match[1]))
     .filter((code) => providerCodes.has(code));
-  const processCode = ["ENOENT", "ETIMEDOUT", "ENOBUFS", "EACCES"].includes(
+  const processCode = ['ENOENT', 'ETIMEDOUT', 'ENOBUFS', 'EACCES'].includes(
     error?.code,
   )
     ? error.code
-    : "UNCLASSIFIED";
+    : 'UNCLASSIFIED';
   return {
-    stage: "WRANGLER_SUBPROCESS",
+    stage: 'WRANGLER_SUBPROCESS',
     exitCode:
       Number.isInteger(error?.status) &&
       error.status >= 0 &&
@@ -48,7 +48,7 @@ export function classifyDeploymentError(error) {
         output,
       ),
     dashboardMetadataFailure: output.includes(
-      "Unable to fetch bindings, routes, or services metadata from the dashboard",
+      'Unable to fetch bindings, routes, or services metadata from the dashboard',
     ),
     authenticationFailure:
       /Authentication error|Unable to authenticate|Could not authenticate/.test(
@@ -63,14 +63,14 @@ export function classifyDeploymentError(error) {
  */
 export function retainDeploymentFailure(
   diagnostic,
-  path = "delivery-record.json",
+  path = 'delivery-record.json',
 ) {
-  const record = JSON.parse(readFileSync(path, "utf8"));
+  const record = JSON.parse(readFileSync(path, 'utf8'));
   record.failure = diagnostic;
   // Same filesystem: a failed write/rename must leave the recovery checkpoint intact.
-  const temporary = mkdtempSync(join(dirname(path), ".delivery-failure-"));
+  const temporary = mkdtempSync(join(dirname(path), '.delivery-failure-'));
   try {
-    const pending = join(temporary, "delivery-record.json");
+    const pending = join(temporary, 'delivery-record.json');
     writeFileSync(pending, `${JSON.stringify(record, null, 2)}\n`);
     renameSync(pending, path);
   } finally {
@@ -96,11 +96,11 @@ export function deploymentExecutor(
         retain(diagnostic);
       } catch {
         // Preserve failure, not a provider error containing command/env/response data.
-        throw new Error("WRANGLER_FAILED_DIAGNOSTIC_RETENTION_FAILED");
+        throw new Error('WRANGLER_FAILED_DIAGNOSTIC_RETENTION_FAILED');
       }
       // Raw cause includes provider output/credentials; only the classification may escape.
       // eslint-disable-next-line preserve-caught-error
-      throw new Error("WRANGLER_FAILED_INSPECT_RETAINED_CLASSIFICATION");
+      throw new Error('WRANGLER_FAILED_INSPECT_RETAINED_CLASSIFICATION');
     }
   };
 }

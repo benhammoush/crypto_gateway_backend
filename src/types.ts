@@ -27,7 +27,7 @@ export interface Merchant {
 
 /** Validated gateway configuration used by request and scheduled handlers. */
 export interface Config {
-  environment: "local" | "dev" | "production";
+  environment: 'local' | 'dev' | 'production';
   enabled: boolean;
   checkoutOrigin: string;
   checkoutSecret: string;

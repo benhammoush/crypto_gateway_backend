@@ -2,9 +2,9 @@
  * Read dev provider metadata only; never deploy, query SQL or certify readiness.
  * @file
  */
-import { appendFileSync } from "node:fs";
-import { Buffer } from "node:buffer";
-import { pathToFileURL } from "node:url";
+import { appendFileSync } from 'node:fs';
+import { Buffer } from 'node:buffer';
+import { pathToFileURL } from 'node:url';
 
 /** Controlled dev-verification failure without raw credential-bearing provider details. */
 class VerificationError extends Error {}
@@ -26,9 +26,9 @@ function requireValue(condition, code) {
  */
 async function readMetadata(fetcher, url, token, label) {
   const response = await fetcher(url, {
-    method: "GET",
+    method: 'GET',
     headers: { authorization: `Bearer ${token}` },
-    redirect: "error",
+    redirect: 'error',
     signal: globalThis.AbortSignal.timeout(15_000),
   });
   if (!response.ok) {
@@ -49,7 +49,7 @@ async function readMetadata(fetcher, url, token, label) {
   } finally {
     await reader.cancel();
   }
-  const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
   requireValue(body?.success === true, `${label}_REJECTED`);
   return body.result;
 }
@@ -61,44 +61,44 @@ async function readMetadata(fetcher, url, token, label) {
  */
 export async function verifyDev(env, fetcher = globalThis.fetch) {
   requireValue(
-    env.GITHUB_EVENT_NAME === "workflow_dispatch" &&
-      env.GITHUB_REF === "refs/heads/main" &&
-      /^[a-f0-9]{40}$/.test(env.GITHUB_SHA ?? ""),
-    "MANUAL_MAIN_REQUIRED",
+    env.GITHUB_EVENT_NAME === 'workflow_dispatch' &&
+      env.GITHUB_REF === 'refs/heads/main' &&
+      /^[a-f0-9]{40}$/.test(env.GITHUB_SHA ?? ''),
+    'MANUAL_MAIN_REQUIRED',
   );
   requireValue(
-    !env.PAYMENTS_ENABLED || env.PAYMENTS_ENABLED === "false",
-    "PAYMENTS_MUST_REMAIN_DISABLED",
+    !env.PAYMENTS_ENABLED || env.PAYMENTS_ENABLED === 'false',
+    'PAYMENTS_MUST_REMAIN_DISABLED',
   );
   requireValue(
-    /^[a-f0-9]{32}$/.test(env.CLOUDFLARE_ACCOUNT_ID ?? "") &&
+    /^[a-f0-9]{32}$/.test(env.CLOUDFLARE_ACCOUNT_ID ?? '') &&
       /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(
-        env.D1_DATABASE_ID ?? "",
+        env.D1_DATABASE_ID ?? '',
       ) &&
       Boolean(env.CLOUDFLARE_API_TOKEN),
-    "DEV_CONFIGURATION_MISSING_OR_INVALID",
+    'DEV_CONFIGURATION_MISSING_OR_INVALID',
   );
   const account = `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}`;
   const database = await readMetadata(
     fetcher,
     `${account}/d1/database/${env.D1_DATABASE_ID}`,
     env.CLOUDFLARE_API_TOKEN,
-    "D1_METADATA",
+    'D1_METADATA',
   );
   requireValue(
     database?.uuid === env.D1_DATABASE_ID &&
-      database.name === "crypto-gateway-dev",
-    "D1_IDENTITY_MISMATCH",
+      database.name === 'crypto-gateway-dev',
+    'D1_IDENTITY_MISMATCH',
   );
   const history = await readMetadata(
     fetcher,
     `${account}/workers/scripts/crypto-gateway-dev/deployments`,
     env.CLOUDFLARE_API_TOKEN,
-    "WORKER_DEPLOYMENTS",
+    'WORKER_DEPLOYMENTS',
   );
   requireValue(
     Array.isArray(history?.deployments),
-    "WORKER_DEPLOYMENTS_RESPONSE_INVALID",
+    'WORKER_DEPLOYMENTS_RESPONSE_INVALID',
   );
   return {
     sourceSha: env.GITHUB_SHA,
@@ -122,7 +122,7 @@ if (
     const code =
       error instanceof VerificationError
         ? error.message
-        : "VERIFICATION_FAILED";
+        : 'VERIFICATION_FAILED';
     process.stderr.write(
       `Read-only dev verification rejected: ${code}. No provider changes were requested; do not infer empty history from failed inspection.\n`,
     );

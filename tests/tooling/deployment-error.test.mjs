@@ -2,7 +2,7 @@
  * @file
  */
 
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from 'vitest';
 import {
   mkdtempSync,
   readFileSync,
@@ -10,16 +10,16 @@ import {
   renameSync,
   readdirSync,
   rmSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   classifyDeploymentError,
   deploymentExecutor,
   retainDeploymentFailure,
-} from "../../scripts/deployment-error.mjs";
+} from '../../scripts/deployment-error.mjs';
 
-vi.mock("node:fs", async (importOriginal) => {
+vi.mock('node:fs', async (importOriginal) => {
   const original = await importOriginal();
   return {
     ...original,
@@ -28,42 +28,42 @@ vi.mock("node:fs", async (importOriginal) => {
   };
 });
 
-it("preserves the original checkpoint and removes temporary files on write or rename failure", () => {
+it('preserves the original checkpoint and removes temporary files on write or rename failure', () => {
   for (const operation of [writeFileSync, renameSync]) {
-    const directory = mkdtempSync(join(tmpdir(), "gateway-atomic-test-"));
+    const directory = mkdtempSync(join(tmpdir(), 'gateway-atomic-test-'));
     try {
-      const path = join(directory, "delivery-record.json");
+      const path = join(directory, 'delivery-record.json');
       const original =
         '{"status":"mutation-requested","previousDeploymentId":"prior"}\n';
       writeFileSync(path, original);
       vi.mocked(operation).mockImplementationOnce(() => {
-        throw Error("simulated filesystem failure");
+        throw Error('simulated filesystem failure');
       });
       expect(() =>
         retainDeploymentFailure(classifyDeploymentError({ status: 1 }), path),
-      ).toThrow("simulated filesystem failure");
-      expect(readFileSync(path, "utf8")).toBe(original);
-      expect(readdirSync(directory)).toEqual(["delivery-record.json"]);
+      ).toThrow('simulated filesystem failure');
+      expect(readFileSync(path, 'utf8')).toBe(original);
+      expect(readdirSync(directory)).toEqual(['delivery-record.json']);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
   }
 });
 
-it("retains only fixed classifications from errors containing credentials and provider responses", () => {
-  const error = Object.assign(new Error("secret command and credential"), {
-    stdout: "secret-token [code: 10000] [code: 10000] [code: 123456]",
+it('retains only fixed classifications from errors containing credentials and provider responses', () => {
+  const error = Object.assign(new Error('secret command and credential'), {
+    stdout: 'secret-token [code: 10000] [code: 10000] [code: 123456]',
     stderr:
-      "Authentication error [code: 9109] https://private.example/key\nUnable to fetch bindings, routes, or services metadata from the dashboard",
+      'Authentication error [code: 9109] https://private.example/key\nUnable to fetch bindings, routes, or services metadata from the dashboard',
     status: 1,
-    code: "secret-process-code",
-    signal: "secret-signal",
-    env: { CLOUDFLARE_API_TOKEN: "secret-token" },
+    code: 'secret-process-code',
+    signal: 'secret-signal',
+    env: { CLOUDFLARE_API_TOKEN: 'secret-token' },
   });
   expect(classifyDeploymentError(error)).toEqual({
-    stage: "WRANGLER_SUBPROCESS",
+    stage: 'WRANGLER_SUBPROCESS',
     exitCode: 1,
-    processCode: "UNCLASSIFIED",
+    processCode: 'UNCLASSIFIED',
     providerCodes: [9109, 10000],
     moduleNotFound: false,
     dashboardMetadataFailure: true,
@@ -74,69 +74,69 @@ it("retains only fixed classifications from errors containing credentials and pr
   );
 });
 
-it("bounds output and ignores arbitrary numbers, messages, buffers and invalid statuses", () => {
+it('bounds output and ignores arbitrary numbers, messages, buffers and invalid statuses', () => {
   for (const error of [
     null,
     {},
     { status: -1 },
     { status: 999 },
-    { status: "1", code: "secret" },
+    { status: '1', code: 'secret' },
   ]) {
     expect(classifyDeploymentError(error).exitCode).toBeNull();
     expect(classifyDeploymentError(error).providerCodes).toEqual([]);
   }
   expect(
-    classifyDeploymentError({ stderr: "x".repeat(1_048_576) + "[code: 10000]" })
+    classifyDeploymentError({ stderr: 'x'.repeat(1_048_576) + '[code: 10000]' })
       .providerCodes,
   ).toEqual([]);
   expect(
-    classifyDeploymentError({ stderr: "token=10000 code 9109" }).providerCodes,
+    classifyDeploymentError({ stderr: 'token=10000 code 9109' }).providerCodes,
   ).toEqual([]);
   expect(
     classifyDeploymentError({
-      code: "ETIMEDOUT",
+      code: 'ETIMEDOUT',
       stderr: "Error: Cannot find module '/private/path'",
     }),
-  ).toMatchObject({ processCode: "ETIMEDOUT", moduleNotFound: true });
+  ).toMatchObject({ processCode: 'ETIMEDOUT', moduleNotFound: true });
 });
 
-it("passes successful calls through unchanged, with no extra calls or evidence mutation", () => {
-  const execute = vi.fn(() => "captured output");
+it('passes successful calls through unchanged, with no extra calls or evidence mutation', () => {
+  const execute = vi.fn(() => 'captured output');
   const retain = vi.fn();
   const args = [
-    "node",
-    ["wrangler", "deploy"],
-    { env: { SECRET: "fixture" }, stdio: ["ignore", "pipe", "pipe"] },
+    'node',
+    ['wrangler', 'deploy'],
+    { env: { SECRET: 'fixture' }, stdio: ['ignore', 'pipe', 'pipe'] },
   ];
-  expect(deploymentExecutor(execute, retain)(...args)).toBe("captured output");
+  expect(deploymentExecutor(execute, retain)(...args)).toBe('captured output');
   expect(execute).toHaveBeenCalledExactlyOnceWith(...args);
   expect(retain).not.toHaveBeenCalled();
 });
 
-it("does not retry or expose the original error, including when evidence persistence fails", () => {
+it('does not retry or expose the original error, including when evidence persistence fails', () => {
   for (const retentionFails of [false, true]) {
     const execute = vi.fn(() => {
-      throw Object.assign(new Error("secret-original"), {
-        stderr: "secret-output",
+      throw Object.assign(new Error('secret-original'), {
+        stderr: 'secret-output',
         status: 1,
       });
     });
     const retain = vi.fn(() => {
-      if (retentionFails) throw Error("secret-path");
+      if (retentionFails) throw Error('secret-path');
     });
     try {
-      deploymentExecutor(execute, retain)("node", [], {
-        env: { CI_ENVIRONMENT: "dev", SECRET: "secret-token" },
+      deploymentExecutor(execute, retain)('node', [], {
+        env: { CI_ENVIRONMENT: 'dev', SECRET: 'secret-token' },
       });
-      throw Error("expected failure");
+      throw Error('expected failure');
     } catch (error) {
       expect(error.message).toBe(
         retentionFails
-          ? "WRANGLER_FAILED_DIAGNOSTIC_RETENTION_FAILED"
-          : "WRANGLER_FAILED_INSPECT_RETAINED_CLASSIFICATION",
+          ? 'WRANGLER_FAILED_DIAGNOSTIC_RETENTION_FAILED'
+          : 'WRANGLER_FAILED_INSPECT_RETAINED_CLASSIFICATION',
       );
       expect(error.cause).toBeUndefined();
-      expect(JSON.stringify(error)).not.toContain("secret");
+      expect(JSON.stringify(error)).not.toContain('secret');
     }
     expect(execute).toHaveBeenCalledOnce();
     expect(retain).toHaveBeenCalledExactlyOnceWith(
@@ -145,24 +145,24 @@ it("does not retry or expose the original error, including when evidence persist
   }
 });
 
-it("adds classifications without upgrading uncertain status or changing recovery identities", () => {
-  const directory = mkdtempSync(join(tmpdir(), "gateway-error-test-"));
+it('adds classifications without upgrading uncertain status or changing recovery identities', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'gateway-error-test-'));
   try {
-    const path = join(directory, "delivery-record.json");
+    const path = join(directory, 'delivery-record.json');
     const original = {
-      sourceSha: "a".repeat(40),
-      status: "mutation-requested",
+      sourceSha: 'a'.repeat(40),
+      status: 'mutation-requested',
       deploymentId: null,
-      previousDeploymentId: "prior-worker",
-      previousProviderDeploymentId: "prior-deployment",
+      previousDeploymentId: 'prior-worker',
+      previousProviderDeploymentId: 'prior-deployment',
     };
     writeFileSync(path, JSON.stringify(original));
     const diagnostic = classifyDeploymentError({
       status: 1,
-      stderr: "[code: 10000]",
+      stderr: '[code: 10000]',
     });
     retainDeploymentFailure(diagnostic, path);
-    expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({
       ...original,
       failure: diagnostic,
     });
@@ -171,16 +171,16 @@ it("adds classifications without upgrading uncertain status or changing recovery
   }
 });
 
-it("wires only the subprocess executor into the existing pinned deployment and retained artifact", () => {
-  const adapter = readFileSync("scripts/ci-deploy.mjs", "utf8");
-  expect(adapter).toContain("deploymentExecutor()");
-  expect(adapter).toContain("await smokeDelivery(process.env, fetcher)");
+it('wires only the subprocess executor into the existing pinned deployment and retained artifact', () => {
+  const adapter = readFileSync('scripts/ci-deploy.mjs', 'utf8');
+  expect(adapter).toContain('deploymentExecutor()');
+  expect(adapter).toContain('await smokeDelivery(process.env, fetcher)');
   const { automationSha } = JSON.parse(
-    readFileSync(".github/ci-cd.json", "utf8"),
+    readFileSync('.github/ci-cd.json', 'utf8'),
   );
   expect(automationSha).toMatch(/^[a-f0-9]{40}$/);
-  for (const name of ["ci.yml", "deploy-production.yml"]) {
-    const workflow = readFileSync(`.github/workflows/${name}`, "utf8");
+  for (const name of ['ci.yml', 'deploy-production.yml']) {
+    const workflow = readFileSync(`.github/workflows/${name}`, 'utf8');
     expect(workflow).toContain(`verify-worker.yml@${automationSha}`);
     expect(workflow).toContain(`deploy-worker.yml@${automationSha}`);
   }

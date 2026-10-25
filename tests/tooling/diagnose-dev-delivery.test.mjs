@@ -2,60 +2,60 @@
  * @file
  */
 
-import { expect, it, vi } from "vitest";
-import { readFileSync, existsSync } from "node:fs";
-import { spawnSync } from "node:child_process";
-import { fileURLToPath, URL } from "node:url";
-import { diagnoseDev } from "../../scripts/diagnose-dev-delivery.mjs";
-import { migrationDigest } from "../../scripts/check-delivery.mjs";
+import { expect, it, vi } from 'vitest';
+import { readFileSync, existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath, URL } from 'node:url';
+import { diagnoseDev } from '../../scripts/diagnose-dev-delivery.mjs';
+import { migrationDigest } from '../../scripts/check-delivery.mjs';
 
 const { Response, ReadableStream } = globalThis;
 
-const version = "11111111-1111-4111-8111-111111111111";
-const tokenId = "b".repeat(32);
+const version = '11111111-1111-4111-8111-111111111111';
+const tokenId = 'b'.repeat(32);
 
 /** Fixture target/configuration; no provider credential or network access.
  * @returns Synthetic account, database and Worker identities.
  */
 function environment() {
-  const database = "22222222-2222-4222-8222-222222222222";
+  const database = '22222222-2222-4222-8222-222222222222';
   return {
-    GITHUB_REPOSITORY: "benhammoush/crypto_gateway_backend",
-    GITHUB_EVENT_NAME: "workflow_dispatch",
-    GITHUB_REF: "refs/heads/main",
-    GITHUB_SHA: "a".repeat(40),
-    GITHUB_RUN_ATTEMPT: "1",
-    CLOUDFLARE_ACCOUNT_ID: "86151fe132605d222017f191e4a1ee01",
-    CLOUDFLARE_API_TOKEN: "synthetic-secret",
+    GITHUB_REPOSITORY: 'benhammoush/crypto_gateway_backend',
+    GITHUB_EVENT_NAME: 'workflow_dispatch',
+    GITHUB_REF: 'refs/heads/main',
+    GITHUB_SHA: 'a'.repeat(40),
+    GITHUB_RUN_ATTEMPT: '1',
+    CLOUDFLARE_ACCOUNT_ID: '86151fe132605d222017f191e4a1ee01',
+    CLOUDFLARE_API_TOKEN: 'synthetic-secret',
     D1_DATABASE_ID: database,
-    OTHER_D1_DATABASE_ID: "33333333-3333-4333-8333-333333333333",
+    OTHER_D1_DATABASE_ID: '33333333-3333-4333-8333-333333333333',
     D1_SCHEMA_DIGEST: migrationDigest(),
-    API_ORIGIN: "https://dev.example.com",
-    DEPLOY_ENABLED: "true",
-    PAYMENTS_ENABLED: "true",
-    GITHUB_TOKEN: "synthetic-github-secret",
-    NODE_OPTIONS: "--inspect",
+    API_ORIGIN: 'https://dev.example.com',
+    DEPLOY_ENABLED: 'true',
+    PAYMENTS_ENABLED: 'true',
+    GITHUB_TOKEN: 'synthetic-github-secret',
+    NODE_OPTIONS: '--inspect',
     RUNNER_TEMP: process.env.RUNNER_TEMP || process.env.TEMP,
     WORKER_CONFIG_JSON: JSON.stringify({
-      name: "crypto-gateway-dev",
-      main: "src/index.ts",
-      compatibility_date: "2026-10-04",
-      compatibility_flags: ["global_fetch_strictly_public"],
+      name: 'crypto-gateway-dev',
+      main: 'src/index.ts',
+      compatibility_date: '2026-10-04',
+      compatibility_flags: ['global_fetch_strictly_public'],
       workers_dev: true,
       d1_databases: [
         {
-          binding: "DB",
-          database_name: "crypto-gateway-dev",
+          binding: 'DB',
+          database_name: 'crypto-gateway-dev',
           database_id: database,
-          migrations_dir: "migrations",
+          migrations_dir: 'migrations',
         },
       ],
-      triggers: { crons: ["* * * * *"] },
+      triggers: { crons: ['* * * * *'] },
       vars: {
-        APP_ENV: "dev",
-        PAYMENTS_ENABLED: "true",
-        CHECKOUT_ORIGIN: "https://checkout.example.com",
-        WEBHOOK_HOSTS: "",
+        APP_ENV: 'dev',
+        PAYMENTS_ENABLED: 'true',
+        CHECKOUT_ORIGIN: 'https://checkout.example.com',
+        WEBHOOK_HOSTS: '',
       },
     }),
   };
@@ -78,10 +78,10 @@ function metadata(env) {
       {
         resources: {
           bindings: [
-            { name: "APP_ENV", text: "dev" },
-            { name: "PAYMENTS_ENABLED", text: "true" },
-            { name: "DB", id: env.D1_DATABASE_ID },
-            { name: "SOLANA_RPC_URL", type: "secret_text" },
+            { name: 'APP_ENV', text: 'dev' },
+            { name: 'PAYMENTS_ENABLED', text: 'true' },
+            { name: 'DB', id: env.D1_DATABASE_ID },
+            { name: 'SOLANA_RPC_URL', type: 'secret_text' },
           ],
         },
       },
@@ -90,17 +90,17 @@ function metadata(env) {
       `${worker}/settings`,
       {
         bindings: [
-          { name: "private-binding", text: "private-provider-payload" },
+          { name: 'private-binding', text: 'private-provider-payload' },
         ],
       },
     ],
-    [`${account}/workers/subdomain`, { subdomain: "private-provider-payload" }],
+    [`${account}/workers/subdomain`, { subdomain: 'private-provider-payload' }],
     [
       `${account}/d1/database/${env.D1_DATABASE_ID}`,
       { uuid: env.D1_DATABASE_ID },
     ],
     [
-      "https://api.cloudflare.com/client/v4/user/tokens/verify",
+      'https://api.cloudflare.com/client/v4/user/tokens/verify',
       { id: tokenId },
     ],
     [
@@ -108,17 +108,17 @@ function metadata(env) {
       {
         policies: [
           {
-            effect: "allow",
-            permission_groups: [{ name: "Workers Scripts Write" }],
+            effect: 'allow',
+            permission_groups: [{ name: 'Workers Scripts Write' }],
           },
         ],
       },
     ],
   ]);
   return vi.fn(async (url, init) => {
-    expect(init.method).toBe("GET");
+    expect(init.method).toBe('GET');
     expect(init.body).toBeUndefined();
-    expect(init.redirect).toBe("error");
+    expect(init.redirect).toBe('error');
     expect(init.signal).toBeInstanceOf(AbortSignal);
     expect(init.headers.authorization).toBe(
       `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
@@ -128,16 +128,16 @@ function metadata(env) {
   });
 }
 
-it("observes enabled dev without mutations and exposes only fixed classifications", async () => {
+it('observes enabled dev without mutations and exposes only fixed classifications', async () => {
   const env = environment();
   const fetcher = metadata(env);
   const execute = vi.fn((command, args, options) => {
     expect(command).toBe(process.execPath);
-    expect(args).toContain("--dry-run");
-    expect(args).toContain("--no-bundle");
-    expect(args).not.toContain("--secrets-file");
+    expect(args).toContain('--dry-run');
+    expect(args).toContain('--no-bundle');
+    expect(args).not.toContain('--secrets-file');
     expect(
-      JSON.parse(readFileSync(args[args.indexOf("--config") + 1])),
+      JSON.parse(readFileSync(args[args.indexOf('--config') + 1])),
     ).toEqual(JSON.parse(env.WORKER_CONFIG_JSON));
     expect(options.env.CLOUDFLARE_API_TOKEN).toBeUndefined();
     expect(options.env.GITHUB_TOKEN).toBeUndefined();
@@ -147,16 +147,16 @@ it("observes enabled dev without mutations and exposes only fixed classification
     expect(options.env.XDG_CONFIG_HOME).toBe(options.cwd);
     expect(options.maxBuffer).toBe(1_048_576);
     expect(options.timeout).toBe(60_000);
-    expect(options.stdio).toEqual(["ignore", "pipe", "pipe"]);
+    expect(options.stdio).toEqual(['ignore', 'pipe', 'pipe']);
     return {
       status: 0,
-      stdout: "private-provider-payload",
+      stdout: 'private-provider-payload',
       stderr: env.CLOUDFLARE_API_TOKEN,
     };
   });
   const report = await diagnoseDev(env, fetcher, execute);
   expect(report.readOnly).toBe(true);
-  expect(report.packaging).toBe("DRY_RUN_OK");
+  expect(report.packaging).toBe('DRY_RUN_OK');
   expect(report.runtimeConfigurationMatches).toBe(true);
   expect(report.rpcSecretObserved).toBe(true);
   expect(report.workerScriptWriteListed).toBe(true);
@@ -168,21 +168,21 @@ it("observes enabled dev without mutations and exposes only fixed classification
   );
 });
 
-it("rejects unsafe contexts/configuration before reads or subprocesses", async () => {
+it('rejects unsafe contexts/configuration before reads or subprocesses', async () => {
   for (const patch of [
-    { GITHUB_REPOSITORY: "other/repository" },
-    { GITHUB_EVENT_NAME: "push" },
-    { GITHUB_REF: "refs/heads/feature" },
-    { GITHUB_SHA: "main" },
-    { CLOUDFLARE_ACCOUNT_ID: "b".repeat(32) },
-    { CLOUDFLARE_API_TOKEN: "" },
+    { GITHUB_REPOSITORY: 'other/repository' },
+    { GITHUB_EVENT_NAME: 'push' },
+    { GITHUB_REF: 'refs/heads/feature' },
+    { GITHUB_SHA: 'main' },
+    { CLOUDFLARE_ACCOUNT_ID: 'b'.repeat(32) },
+    { CLOUDFLARE_API_TOKEN: '' },
     { OTHER_D1_DATABASE_ID: environment().D1_DATABASE_ID },
-    { D1_DATABASE_ID: "../production" },
-    { D1_SCHEMA_DIGEST: "b".repeat(64) },
+    { D1_DATABASE_ID: '../production' },
+    { D1_SCHEMA_DIGEST: 'b'.repeat(64) },
     {
       WORKER_CONFIG_JSON: environment().WORKER_CONFIG_JSON.replace(
-        "crypto-gateway-dev",
-        "crypto-gateway-production",
+        'crypto-gateway-dev',
+        'crypto-gateway-production',
       ),
     },
   ]) {
@@ -196,15 +196,15 @@ it("rejects unsafe contexts/configuration before reads or subprocesses", async (
   }
 });
 
-it("keeps denied API access, hidden policies and dry-run errors non-secret and inconclusive", async () => {
+it('keeps denied API access, hidden policies and dry-run errors non-secret and inconclusive', async () => {
   const env = environment();
   const fetcher = vi.fn(async () =>
     Response.json(
       {
         success: false,
         errors: [
-          { code: 10000, message: "private-provider-payload synthetic-secret" },
-          { code: "synthetic-secret" },
+          { code: 10000, message: 'private-provider-payload synthetic-secret' },
+          { code: 'synthetic-secret' },
         ],
       },
       { status: 403 },
@@ -213,27 +213,27 @@ it("keeps denied API access, hidden policies and dry-run errors non-secret and i
   const report = await diagnoseDev(
     env,
     fetcher,
-    vi.fn(() => ({ status: 1, stderr: "synthetic-secret" })),
+    vi.fn(() => ({ status: 1, stderr: 'synthetic-secret' })),
   );
   expect(report.checks.deployments).toEqual({
-    status: "HTTP_403",
+    status: 'HTTP_403',
     codes: [10000],
   });
-  expect(report.checks.accountTokenIdentity.status).toBe("HTTP_403");
+  expect(report.checks.accountTokenIdentity.status).toBe('HTTP_403');
   expect(report.workerScriptWriteListed).toBeNull();
-  expect(report.packaging).toBe("DRY_RUN_FAILED");
+  expect(report.packaging).toBe('DRY_RUN_FAILED');
   expect(fetcher).toHaveBeenCalledTimes(6);
   expect(JSON.stringify(report)).not.toMatch(
     /private-provider-payload|synthetic-secret/,
   );
 });
 
-it("bounds and cancels provider bodies without leaking malformed output or network exceptions", async () => {
-  for (const kind of ["oversized", "malformed", "network"]) {
+it('bounds and cancels provider bodies without leaking malformed output or network exceptions', async () => {
+  for (const kind of ['oversized', 'malformed', 'network']) {
     let cancelled = false;
     const fetcher = vi.fn(async () => {
-      if (kind === "network") throw Error("synthetic-secret");
-      if (kind === "malformed") return new Response("synthetic-secret");
+      if (kind === 'network') throw Error('synthetic-secret');
+      if (kind === 'malformed') return new Response('synthetic-secret');
       return new Response(
         new ReadableStream({
           /** Feed oversized response chunks to exercise the body-size boundary.
@@ -255,21 +255,21 @@ it("bounds and cancels provider bodies without leaking malformed output or netwo
       vi.fn(() => ({ status: 0 })),
     );
     expect(report.checks.deployments.status).toBe(
-      kind === "oversized" ? "RESPONSE_TOO_LARGE" : "READ_FAILED",
+      kind === 'oversized' ? 'RESPONSE_TOO_LARGE' : 'READ_FAILED',
     );
-    if (kind === "oversized") expect(cancelled).toBe(true);
-    expect(JSON.stringify(report)).not.toContain("synthetic-secret");
+    if (kind === 'oversized') expect(cancelled).toBe(true);
+    expect(JSON.stringify(report)).not.toContain('synthetic-secret');
   }
 });
 
-it("never follows a provider-supplied version path outside the exact dev resource", async () => {
+it('never follows a provider-supplied version path outside the exact dev resource', async () => {
   const env = environment();
   const fetcher = metadata(env);
   fetcher.mockImplementationOnce(async () =>
     Response.json({
       success: true,
       result: {
-        deployments: [{ versions: [{ version_id: "../../production" }] }],
+        deployments: [{ versions: [{ version_id: '../../production' }] }],
       },
     }),
   );
@@ -279,40 +279,40 @@ it("never follows a provider-supplied version path outside the exact dev resourc
     vi.fn(() => ({ status: 0 })),
   );
   expect(report.checks.version).toBeUndefined();
-  expect(fetcher.mock.calls.some(([url]) => url.includes("../"))).toBe(false);
+  expect(fetcher.mock.calls.some(([url]) => url.includes('../'))).toBe(false);
 });
 
-it("fails safely from the CLI before credential access and never dumps exception data", () => {
+it('fails safely from the CLI before credential access and never dumps exception data', () => {
   const result = spawnSync(
     process.execPath,
     [
       fileURLToPath(
-        new URL("../../scripts/diagnose-dev-delivery.mjs", import.meta.url),
+        new URL('../../scripts/diagnose-dev-delivery.mjs', import.meta.url),
       ),
     ],
     {
       env: {
-        GITHUB_REPOSITORY: "untrusted/repo",
-        CLOUDFLARE_API_TOKEN: "synthetic-secret",
+        GITHUB_REPOSITORY: 'untrusted/repo',
+        CLOUDFLARE_API_TOKEN: 'synthetic-secret',
       },
-      encoding: "utf8",
+      encoding: 'utf8',
       timeout: 5000,
     },
   );
   expect(result.status).toBe(1);
-  expect(result.stderr).toContain("UNSAFE_CONTEXT_OR_CONFIGURATION");
+  expect(result.stderr).toContain('UNSAFE_CONTEXT_OR_CONFIGURATION');
   expect(result.stdout + result.stderr).not.toMatch(
     /synthetic-secret|AssertionError|at diagnoseDev/,
   );
 });
 
-it("retires the hosted diagnostic entry point while preserving CLI read-only guards", () => {
+it('retires the hosted diagnostic entry point while preserving CLI read-only guards', () => {
   expect(() =>
-    readFileSync(".github/workflows/diagnose-dev-delivery.yml"),
-  ).toThrow(expect.objectContaining({ code: "ENOENT" }));
-  const source = readFileSync("scripts/diagnose-dev-delivery.mjs", "utf8");
+    readFileSync('.github/workflows/diagnose-dev-delivery.yml'),
+  ).toThrow(expect.objectContaining({ code: 'ENOENT' }));
+  const source = readFileSync('scripts/diagnose-dev-delivery.mjs', 'utf8');
   expect(source).not.toMatch(/method: "(?:POST|PUT|PATCH|DELETE)"/);
-  expect(readFileSync("scripts/verify-dev.mjs", "utf8")).toContain(
-    "PAYMENTS_MUST_REMAIN_DISABLED",
+  expect(readFileSync('scripts/verify-dev.mjs', 'utf8')).toContain(
+    'PAYMENTS_MUST_REMAIN_DISABLED',
   );
 });
