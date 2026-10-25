@@ -6,29 +6,35 @@ The parent-scoped Miniflare override keeps Undici on patched 7.30.1 while retain
 the reviewed Worker toolchain. Remove it when Miniflare's dependency declaration
 naturally resolves to a patched compatible release, not by forcing a major upgrade.
 
-Automation 4.0 retains flag-free delivery and adds consistent job names and weekly
-vulnerability audits. The published immutable shared revision is pinned in
+Automation 5.0 separates PR verification, dev delivery and production delivery
+with distinct job names, retaining flag-free delivery and weekly vulnerability
+audits. The published immutable shared revision is pinned in
 `.github/ci-cd.json`; source adoption does not change live settings.
 
-Prepared job naming replaces the old verification aliases with standalone `Verify`.
-Existing required-check settings below remain live until the owner approves the
-[coordinated check-name migration](https://github.com/benhammoush/ci-cd-workflows/blob/main/docs/contract.md#canonical-job-names-and-required-check-migration).
-Do not merge the naming change under unchanged protections. Workflow comments are
-limited to two header lines; this runbook and the shared contract own the detail.
+The standalone PR `Verify` result preserves the existing required-check context;
+the older check-name migration below is historical. No protection change is
+needed for this workflow split. Workflow comments are limited to two header lines;
+this runbook and the shared contract own the detail.
 
 The `.github/workflows/weekly-vuln-audit.yml` caller uses the same published shared
 SHA as release workflows and runs weekly or manually after adoption on main.
 It checks vulnerabilities without updating dependencies or deploying. See the
-[shared audit contract](https://github.com/benhammoush/ci-cd-workflows/blob/64b5e00a3d2895a8cba05b040f0d5a0415613d9e/docs/contract.md#weekly-vulnerability-audits).
+[shared audit contract](https://github.com/benhammoush/ci-cd-workflows/blob/d1143395dc6a078ef284978c1daf039ed06ff7d1/docs/contract.md#weekly-vulnerability-audits).
 
 The [shared contract](https://github.com/benhammoush/ci-cd-workflows/blob/main/docs/contract.md)
-v4.0.0 is pinned in `.github/ci-cd.json`. The Worker profile does not install
-browsers. CI checks PRs/main and delivers only successful
-exact main commits to dev without a deployment-enable switch. Separate manual `deploy-production.yml` selects
+v5.0.0 is pinned in `.github/ci-cd.json`. The Worker profile does not install
+browsers. `verify-pr.yml` checks PR creation, updates and reopening without
+deployment jobs or secrets. `verify-and-deploy-dev.yml` verifies main pushes and
+delivers only successful exact main commits to dev without a deployment-enable
+switch. Separate manual `verify-and-deploy-prod.yml` selects
 a full merged `sha`, requires retained successful dev evidence, verifies the
-candidate and waits for native approval. CI dispatch is the exact-SHA dev recovery
+candidate and waits for native approval. Dev-workflow dispatch is the exact-SHA dev recovery
 path. These replace older combined target-selector invocations, not isolation,
 schema readback or payment/recovery acceptance requirements.
+
+All three entry points, the weekly audit and `.github/ci-cd.json` pin published
+shared revision `d1143395dc6a078ef284978c1daf039ed06ff7d1` (automation 5.0).
+Publication does not authorize a merge, deployment or production approval.
 
 All Ubuntu jobs use `ubuntu-24.04`. Deployment consumes the checked dry-run bundle
 with `--no-bundle`, retaining the managed configuration and migration-digest guards.
