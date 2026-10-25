@@ -6,6 +6,7 @@ import { appendFileSync } from "node:fs";
 import { Buffer } from "node:buffer";
 import { pathToFileURL } from "node:url";
 
+/** Controlled dev-verification failure without raw credential-bearing provider details. */
 class VerificationError extends Error {}
 
 /** Fail with a source-defined classification, never a provider response. */

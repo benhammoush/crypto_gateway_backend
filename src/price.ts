@@ -1,3 +1,8 @@
+/**
+ * USD-cent pricing and exact lamport conversion for payment quotes.
+ * @packageDocumentation
+ */
+
 import { PublicError } from "./types";
 
 export const SOL_MINT = "So11111111111111111111111111111111111111112";
@@ -28,11 +33,13 @@ export function lamportsForUsd(cents: number, price: string): string {
   return result.toString();
 }
 
+/** Format exact lamports as nine-decimal SOL without floating-point conversion. */
 export function formatSol(lamports: string): string {
   const value = BigInt(lamports);
   return `${value / 1_000_000_000n}.${(value % 1_000_000_000n).toString().padStart(9, "0")}`;
 }
 
+/** Load a bounded SOL/USD quote and reject unusable pricing evidence. */
 export async function getQuote(
   apiKey: string,
 ): Promise<{ usdPrice: string; blockId: number }> {

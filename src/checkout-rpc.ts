@@ -1,3 +1,8 @@
+/**
+ * Authenticated, allowlisted checkout RPC forwarding without exposing provider credentials.
+ * @packageDocumentation
+ */
+
 import { base58Length, jsonBody } from "./security";
 import { DEVNET_GENESIS } from "./solana";
 import { Payment, PublicError } from "./types";

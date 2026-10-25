@@ -1,3 +1,8 @@
+/**
+ * Gateway payment lifecycle, settlement and HTTP boundary regressions.
+ * @packageDocumentation
+ */
+
 import {
   afterAll,
   afterEach,
@@ -105,6 +110,7 @@ afterAll(async () => {
   await mf?.dispose();
 });
 
+/** Invoke the gateway with controlled request inputs and isolated bindings. */
 async function call(
   path: string,
   token = credential,
@@ -133,6 +139,7 @@ async function call(
   return { status: response.status, body: parsed };
 }
 
+/** Create a fixture payment through the HTTP boundary under test. */
 async function create(key = "fixture_idempotency_key", cents = 1000) {
   const result = await call(
     "/v1/payments",
@@ -151,6 +158,7 @@ async function create(key = "fixture_idempotency_key", cents = 1000) {
   };
 }
 
+/** Build controlled finalized transfer evidence for the selected payment. */
 function transfer(payment: Payment, sig = signature): ParsedTransaction {
   return {
     blockTime: Math.floor(payment.created_at / 1000),
@@ -187,6 +195,7 @@ function transfer(payment: Payment, sig = signature): ParsedTransaction {
 
 describe("checkout RPC authorization and limits", () => {
   it("allows the SDK metadata header in approved-origin preflight only", async () => {
+    /** Issue a CORS preflight from the selected test origin. */
     const preflight = (origin: string) =>
       worker.fetch(
         new Request(
@@ -225,6 +234,7 @@ describe("checkout RPC authorization and limits", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  /** Exercise checkout RPC forwarding using the fixture payment capability. */
   async function rpcCall(
     id: string,
     token: string,

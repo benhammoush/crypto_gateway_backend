@@ -1,4 +1,6 @@
-/** Retain fixed failure classifications, never raw subprocess output or credentials. @file */
+/** Retain fixed failure classifications, never raw subprocess output or credentials.
+ * @file
+ */
 import { execFileSync } from "node:child_process";
 import {
   mkdtempSync,

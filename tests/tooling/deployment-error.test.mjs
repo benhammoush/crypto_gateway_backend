@@ -1,3 +1,7 @@
+/** Deployment failure classification and secret-redaction regressions.
+ * @file
+ */
+
 import { expect, it, vi } from "vitest";
 import {
   mkdtempSync,

@@ -1,3 +1,8 @@
+/**
+ * Configuration rejection and safe diagnostic regressions.
+ * @packageDocumentation
+ */
+
 import { afterEach, expect, it, vi } from "vitest";
 import Ajv from "ajv/dist/2020";
 import { readFileSync } from "node:fs";
@@ -13,6 +18,7 @@ const merchant = {
 };
 const env: Env = {
   DB: new Proxy({} as D1Database, {
+    /** Simulate a binding getter failure without disclosing its secret text. */
     get() {
       throw new Error("Unexpected database access.");
     },

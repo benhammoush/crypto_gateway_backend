@@ -1,4 +1,6 @@
-/** Preserve isolated schema/configuration guards while deploying the already-tested Worker bundle. @file */
+/** Preserve isolated schema/configuration guards while deploying the already-tested Worker bundle.
+ * @file
+ */
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";

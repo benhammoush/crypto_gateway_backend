@@ -1,3 +1,7 @@
+/** Drive scheduled events against the local Worker only, with no hosted fallback.
+ * @file
+ */
+
 // Local-only scheduled-event driver. No configurable host or hosted fallback.
 const endpoint = "http://localhost:8787/__scheduled?cron=*+*+*+*+*";
 let stopped = false;

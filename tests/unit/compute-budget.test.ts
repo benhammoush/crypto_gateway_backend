@@ -1,3 +1,8 @@
+/**
+ * Supported compute-budget instruction validation regressions.
+ * @packageDocumentation
+ */
+
 import { expect, it } from "vitest";
 import {
   MEMO_PROGRAM,
@@ -27,6 +32,7 @@ const payment: Payment = {
   payer: null,
   settled_at: null,
 };
+/** Build finalized payment evidence before inserting the instruction under test. */
 function transaction(): ParsedTransaction {
   return {
     blockTime: 2,
@@ -58,6 +64,7 @@ function transaction(): ParsedTransaction {
 }
 
 // Independent fixture encoding covers unsigned wire boundaries without Number rounding.
+/** Encode controlled instruction bytes as base58 for parsed-transaction fixtures. */
 function encode(bytes: number[]): string {
   const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
   let value = bytes.reduce((result, byte) => result * 256n + BigInt(byte), 0n);

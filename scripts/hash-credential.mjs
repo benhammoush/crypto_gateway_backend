@@ -1,3 +1,7 @@
+/** Hash the supplied merchant credential without retaining its plaintext.
+ * @file
+ */
+
 import { createHash } from "node:crypto";
 
 // Read from stdin, never CLI arguments (which can appear in process listings).

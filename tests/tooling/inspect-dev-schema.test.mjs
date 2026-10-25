@@ -1,3 +1,7 @@
+/** Read-only schema inspection, identity and bounded-response regressions.
+ * @file
+ */
+
 import { afterEach, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -282,9 +286,11 @@ it("rejects reported writes, missing write metrics, excess rows and malformed qu
 it("cancels oversized response streams", async () => {
   let cancelled = false;
   const stream = new globalThis.ReadableStream({
+    /** Feed the controlled stream used by the response-size test. */
     start(controller) {
       controller.enqueue(new Uint8Array(65_537));
     },
+    /** Record that the rejected response stream was cancelled. */
     cancel() {
       cancelled = true;
     },

@@ -1,3 +1,8 @@
+/**
+ * Runtime response compatibility with the published API schema.
+ * @packageDocumentation
+ */
+
 import Ajv from "ajv/dist/2020";
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";

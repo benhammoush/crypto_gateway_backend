@@ -19,6 +19,7 @@ import { inspectDevSchema } from "./inspect-dev-schema.mjs";
 export const APPROVED_MIGRATION = "0001_payments.sql";
 export const APPROVED_DIGEST =
   "0b9c864f51e36b27b6c8d38b061cd5cdff837cd2547ec445f8691e84aafab042";
+/** Controlled migration failure distinguished from raw provider or command errors. */
 class MigrationError extends Error {}
 
 /** Reject with fixed classifications, without printing credentials or provider output. */

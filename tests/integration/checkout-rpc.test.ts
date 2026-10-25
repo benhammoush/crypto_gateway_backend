@@ -1,3 +1,8 @@
+/**
+ * Checkout RPC authentication, allowlisting and provider isolation regressions.
+ * @packageDocumentation
+ */
+
 import { afterEach, expect, it, vi } from "vitest";
 import { checkoutRpc } from "../../src/checkout-rpc";
 import type { Payment } from "../../src/types";

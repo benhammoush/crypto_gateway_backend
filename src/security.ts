@@ -1,3 +1,8 @@
+/**
+ * Credential hashing, authentication and bounded request parsing.
+ * @packageDocumentation
+ */
+
 import { PublicError } from "./types";
 
 const encoder = new TextEncoder();
@@ -11,10 +16,12 @@ export function equal(a: string, b: string): boolean {
   return difference === 0;
 }
 
+/** Hash input text for stable request or credential comparison. */
 export async function sha256(value: string): Promise<string> {
   return hex(await crypto.subtle.digest("SHA-256", encoder.encode(value)));
 }
 
+/** Authenticate text with the supplied secret rather than exposing the secret itself. */
 export async function hmac(secret: string, value: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
@@ -26,6 +33,7 @@ export async function hmac(secret: string, value: string): Promise<string> {
   return hex(await crypto.subtle.sign("HMAC", key, encoder.encode(value)));
 }
 
+/** Encode raw digest bytes as lowercase hexadecimal. */
 function hex(bytes: ArrayBuffer): string {
   return [...new Uint8Array(bytes)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
@@ -50,6 +58,7 @@ export function base58Length(value: string): number {
   return bytes + (value.match(/^1*/)?.[0].length ?? 0);
 }
 
+/** Extract the bearer credential or raise the controlled authentication failure. */
 export function bearer(request: Request): string {
   const header = request.headers.get("authorization") ?? "";
   const match = /^Bearer ([A-Za-z0-9_-]{32,256})$/.exec(header);

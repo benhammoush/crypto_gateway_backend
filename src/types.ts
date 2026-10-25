@@ -1,3 +1,9 @@
+/**
+ * Shared payment, configuration and public-error contracts.
+ * @packageDocumentation
+ */
+
+/** Worker bindings; provider credentials remain server-side. */
 export interface Env {
   DB: D1Database;
   APP_ENV?: string;
@@ -10,6 +16,7 @@ export interface Env {
   WEBHOOK_HOSTS?: string;
 }
 
+/** Persisted merchant identity and settlement configuration. */
 export interface Merchant {
   id: string;
   apiKeyHash: string;
@@ -18,6 +25,7 @@ export interface Merchant {
   webhookSecret?: string;
 }
 
+/** Validated gateway configuration used by request and scheduled handlers. */
 export interface Config {
   environment: "local" | "dev" | "production";
   enabled: boolean;
@@ -28,6 +36,7 @@ export interface Config {
   priceKey: string;
 }
 
+/** Persisted payment including integer-cent and exact lamport quote fields. */
 export interface Payment {
   id: string;
   merchant_id: string;
@@ -46,7 +55,9 @@ export interface Payment {
   settled_at: number | null;
 }
 
+/** Controlled gateway failure safe to serialize to a public response. */
 export class PublicError extends Error {
+  /** Retain the public error code, message and HTTP status for the response boundary. */
   constructor(
     public code: string,
     message: string,
