@@ -25,8 +25,8 @@ afterEach(() => {
 });
 
 it("uses only the configured upstream and canonical arguments without forwarding credentials", async () => {
-  const fetchMock = vi.fn(async () =>
-    Response.json({ jsonrpc: "2.0", id: 1, result: genesis }),
+  const fetchMock = vi.fn(() =>
+    Promise.resolve(Response.json({ jsonrpc: "2.0", id: 1, result: genesis })),
   );
   vi.stubGlobal("fetch", fetchMock);
   expect(await checkoutRpc(url, payment, input)).toEqual({
@@ -87,19 +87,21 @@ it.each([{ signature: "settled" }, { expires_at: Date.now() - 1 }])(
 it("returns only validated blockhash fields", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () =>
-      Response.json({
-        jsonrpc: "2.0",
-        id: 1,
-        result: {
-          context: { slot: 123, provider: url },
-          value: {
-            blockhash: "1".repeat(32),
-            lastValidBlockHeight: 99,
-            secret: url,
+    vi.fn(() =>
+      Promise.resolve(
+        Response.json({
+          jsonrpc: "2.0",
+          id: 1,
+          result: {
+            context: { slot: 123, provider: url },
+            value: {
+              blockhash: "1".repeat(32),
+              lastValidBlockHeight: 99,
+              secret: url,
+            },
           },
-        },
-      }),
+        }),
+      ),
     ),
   );
   expect(
@@ -137,7 +139,7 @@ it.each([
 ])("rejects invalid blockhash result %j", async (result) => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => Response.json({ jsonrpc: "2.0", id: 1, result })),
+    vi.fn().mockResolvedValue(Response.json({ jsonrpc: "2.0", id: 1, result })),
   );
   await expect(
     checkoutRpc(url, payment, {
@@ -150,7 +152,9 @@ it.each([
 
 it("bounds the upstream deadline and sanitizes timeouts", async () => {
   const deadline = new AbortController();
-  vi.spyOn(AbortSignal, "timeout").mockReturnValue(deadline.signal);
+  const timeout = vi
+    .spyOn(AbortSignal, "timeout")
+    .mockReturnValue(deadline.signal);
   vi.stubGlobal(
     "fetch",
     vi.fn(
@@ -165,7 +169,7 @@ it("bounds the upstream deadline and sanitizes timeouts", async () => {
   const pending = expect(
     checkoutRpc(url, payment, input),
   ).rejects.toMatchObject({ code: "RPC_UNAVAILABLE" });
-  expect(AbortSignal.timeout).toHaveBeenCalledWith(8000);
+  expect(timeout).toHaveBeenCalledWith(8000);
   deadline.abort();
   await pending;
 });
@@ -193,7 +197,7 @@ it.each([
   async (reply) => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => reply()),
+      vi.fn(() => Promise.resolve().then(reply)),
     );
     await expect(checkoutRpc(url, payment, input)).rejects.toMatchObject({
       code: "RPC_UNAVAILABLE",

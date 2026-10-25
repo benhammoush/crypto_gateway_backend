@@ -22,12 +22,18 @@ export const APPROVED_DIGEST =
 /** Controlled migration failure distinguished from raw provider or command errors. */
 class MigrationError extends Error {}
 
-/** Reject with fixed classifications, without printing credentials or provider output. */
+/** Reject with fixed classifications, without printing credentials or provider output.
+ * @param condition - Migration guard that must hold before proceeding.
+ * @param code - Controlled failure label safe for logs.
+ */
 function requireValue(condition, code) {
   if (!condition) throw new MigrationError(code);
 }
 
-/** A migration-only config has no Worker entrypoint, secrets, vars or deployment routes. */
+/** A migration-only config has no Worker entrypoint, secrets, vars or deployment routes.
+ * @param env - Explicit account and dev database identities.
+ * @returns Configuration scoped only to the selected migration target.
+ */
 export function migrationConfig(env) {
   return {
     name: "crypto-gateway-dev",
@@ -45,7 +51,10 @@ export function migrationConfig(env) {
   };
 }
 
-/** Use only pinned local Wrangler's migrations command, capturing all raw output. */
+/** Use only pinned local Wrangler's migrations command, capturing all raw output.
+ * @param configPath - Generated migration-only configuration path.
+ * @returns Arguments for the pinned local Wrangler migrations command.
+ */
 export function migrationArguments(configPath) {
   return [
     resolve("node_modules/wrangler/bin/wrangler.js"),
@@ -59,7 +68,11 @@ export function migrationArguments(configPath) {
   ];
 }
 
-/** Run once in the isolated runner workspace; never stream raw CLI/provider output. */
+/** Run once in the isolated runner workspace; never stream raw CLI/provider output.
+ * @param env - Explicit approved dev migration context and runner workspace.
+ * @param spawn - Injectable one-attempt process executor.
+ * @returns Captured command success without printing provider output.
+ */
 export function runMigrationCommand(env, spawn = spawnSync) {
   requireValue(
     typeof env.RUNNER_TEMP === "string" && env.RUNNER_TEMP.length > 0,
@@ -86,7 +99,13 @@ export function runMigrationCommand(env, spawn = spawnSync) {
   }
 }
 
-/** Inspect, apply once, then inspect once; fixture injection never uses live credentials. */
+/** Inspect, apply once, then inspect once; fixture injection never uses live credentials.
+ * @param env - Explicitly authorized dev migration context.
+ * @param dependencies - Injectable inspection and execution boundaries.
+ * @param dependencies.inspect - Read-only schema inspector.
+ * @param dependencies.execute - One-attempt migration executor.
+ * @returns Sanitized before/after migration evidence.
+ */
 export async function migrateDev(
   env,
   { inspect = inspectDevSchema, execute = runMigrationCommand } = {},

@@ -8,7 +8,11 @@ import { PublicError } from "./types";
 export const SOL_MINT = "So11111111111111111111111111111111111111112";
 export const MAX_LAMPORTS = BigInt(Number.MAX_SAFE_INTEGER);
 
-/** Convert cents with decimal rational arithmetic, rounding upward once. */
+/** Convert cents with decimal rational arithmetic, rounding upward once.
+ * @param cents - Integer USD cents between 1 and 1000000 inclusive.
+ * @param price - Positive decimal USD-per-SOL quote, optionally in exponent notation.
+ * @returns Integer lamports as decimal text, rounded upward once and range-checked.
+ */
 export function lamportsForUsd(cents: number, price: string): string {
   if (!Number.isSafeInteger(cents) || cents < 1 || cents > 1_000_000)
     throw new PublicError("INVALID_AMOUNT", "Use 1 to 1000000 USD cents.");
@@ -33,13 +37,19 @@ export function lamportsForUsd(cents: number, price: string): string {
   return result.toString();
 }
 
-/** Format exact lamports as nine-decimal SOL without floating-point conversion. */
+/** Format exact lamports as nine-decimal SOL without floating-point conversion.
+ * @param lamports - Integer lamports represented as decimal text.
+ * @returns SOL text with exactly nine fractional digits.
+ */
 export function formatSol(lamports: string): string {
   const value = BigInt(lamports);
   return `${value / 1_000_000_000n}.${(value % 1_000_000_000n).toString().padStart(9, "0")}`;
 }
 
-/** Load a bounded SOL/USD quote and reject unusable pricing evidence. */
+/** Load a bounded SOL/USD quote and reject unusable pricing evidence.
+ * @param apiKey - Operator pricing credential sent only in the upstream header.
+ * @returns Validated USD-per-SOL pricing and its positive block identifier.
+ */
 export async function getQuote(
   apiKey: string,
 ): Promise<{ usdPrice: string; blockId: number }> {
@@ -52,10 +62,13 @@ export async function getQuote(
         redirect: "manual",
       },
     );
-    const body = (await response.json()) as Record<
-      string,
-      { usdPrice?: unknown; blockId?: unknown; decimals?: unknown }
-    >;
+    const body =
+      await response.json<
+        Record<
+          string,
+          { usdPrice?: unknown; blockId?: unknown; decimals?: unknown }
+        >
+      >();
     const price = body[SOL_MINT];
     const usdPrice =
       typeof price?.usdPrice === "number" || typeof price?.usdPrice === "string"

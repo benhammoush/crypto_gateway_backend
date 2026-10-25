@@ -12,7 +12,12 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { hostedConfig, migrationDigest } from "./check-delivery.mjs";
 
-/** Fetch one fixed-origin metadata resource; retain only numeric error codes. */
+/** Fetch one fixed-origin metadata resource; retain only numeric error codes.
+ * @param path - Fixed Cloudflare metadata path.
+ * @param token - Selected account's scoped provider credential.
+ * @param fetcher - Injectable metadata transport.
+ * @returns A bounded response classification, never raw provider failure text.
+ */
 async function metadata(path, token, fetcher) {
   try {
     const response = await fetcher(
@@ -53,7 +58,12 @@ async function metadata(path, token, fetcher) {
   }
 }
 
-/** Keep only known scalar classifications, never remote bodies or token details. */
+/** Keep only known scalar classifications, never remote bodies or token details.
+ * @param observation - Captured metadata response classification.
+ * @param observation.status - HTTP status observed by the diagnostic.
+ * @param observation.codes - Optional numeric provider error codes.
+ * @returns Only the status and optional controlled code list.
+ */
 function classification({ status, codes }) {
   return codes ? { status, codes } : { status };
 }
@@ -61,6 +71,10 @@ function classification({ status, codes }) {
 /**
  * Diagnose the configured dev target with GETs and a credential-free local dry run.
  * Enabled deployments/payments are observed, not changed; old bootstrap guards remain.
+ * @param env - Manual-main context and explicit isolated dev target identities.
+ * @param fetcher - Injectable metadata-only transport.
+ * @param execute - Injectable credential-free local dry-run executor.
+ * @returns Sanitized observations, not deployment or payment acceptance.
  */
 export async function diagnoseDev(env, fetcher = fetch, execute = spawnSync) {
   assert.equal(env.GITHUB_REPOSITORY, "benhammoush/crypto_gateway_backend");

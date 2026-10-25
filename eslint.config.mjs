@@ -13,6 +13,8 @@ const contexts = [
   "FunctionExpression[parent.type='VariableDeclarator']",
   "ArrowFunctionExpression[parent.type='VariableDeclarator']",
   "FunctionExpression[id]",
+  "CallExpression[callee.name=/^(memo|forwardRef)$/] > :matches(ArrowFunctionExpression, FunctionExpression)",
+  "CallExpression[callee.object.name='React'][callee.property.name=/^(memo|forwardRef)$/] > :matches(ArrowFunctionExpression, FunctionExpression)",
   "MethodDefinition",
   "Property[value.type=/^(ArrowFunctionExpression|FunctionExpression)$/]",
   "PropertyDefinition[value.type=/^(ArrowFunctionExpression|FunctionExpression)$/]",
@@ -25,6 +27,14 @@ const contexts = [
   "VariableDeclaration:not([parent.type='ExportNamedDeclaration']):has(VariableDeclarator > CallExpression[callee.object.name='React'][callee.property.name=/^(memo|forwardRef)$/])",
   "ExportNamedDeclaration:has(VariableDeclaration > VariableDeclarator > CallExpression[callee.name=/^(memo|forwardRef)$/])",
   "ExportNamedDeclaration:has(VariableDeclaration > VariableDeclarator > CallExpression[callee.object.name='React'][callee.property.name=/^(memo|forwardRef)$/])",
+];
+
+const callableContexts = [
+  "ArrowFunctionExpression",
+  "FunctionDeclaration",
+  "FunctionExpression",
+  "TSMethodSignature",
+  "TSPropertySignature[typeAnnotation.typeAnnotation.type='TSFunctionType']",
 ];
 
 export default ts.config(
@@ -42,6 +52,19 @@ export default ts.config(
   },
   js.configs.recommended,
   ...ts.configs.recommended,
+  ...ts.configs.recommendedTypeChecked.map((config) => ({
+    ...config,
+    files: ["**/*.{ts,tsx}"],
+  })),
+  {
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
   {
     files: ["**/*.{js,mjs,cjs,ts,tsx}"],
     plugins: { jsdoc },
@@ -49,7 +72,11 @@ export default ts.config(
     rules: {
       "jsdoc/require-jsdoc": [
         "error",
-        { contexts, exemptEmptyFunctions: false },
+        {
+          contexts,
+          exemptEmptyFunctions: false,
+          exemptEmptyConstructors: false,
+        },
       ],
       "jsdoc/require-description": [
         "error",
@@ -60,8 +87,25 @@ export default ts.config(
         { definedTags: ["packageDocumentation"] },
       ],
       "jsdoc/check-param-names": "error",
-      "jsdoc/require-param-description": "error",
-      "jsdoc/require-returns-description": "error",
+      "jsdoc/require-param": ["error", { contexts: callableContexts }],
+      "jsdoc/require-param-description": ["error", { contexts: ["any"] }],
+      "jsdoc/require-returns": [
+        "error",
+        {
+          contexts: [
+            "ArrowFunctionExpression",
+            "FunctionDeclaration",
+            "FunctionExpression",
+            "TSMethodSignature",
+            {
+              context:
+                "TSPropertySignature[typeAnnotation.typeAnnotation.type='TSFunctionType']:not([typeAnnotation.typeAnnotation.returnType.typeAnnotation.type='TSVoidKeyword']):not([typeAnnotation.typeAnnotation.returnType.typeAnnotation.type='TSUndefinedKeyword']):not([typeAnnotation.typeAnnotation.returnType.typeAnnotation.type='TSNeverKeyword'])",
+              forceRequireReturn: true,
+            },
+          ],
+        },
+      ],
+      "jsdoc/require-returns-description": ["error", { contexts: ["any"] }],
       "jsdoc/valid-types": "error",
       "jsdoc/require-file-overview": "error",
     },

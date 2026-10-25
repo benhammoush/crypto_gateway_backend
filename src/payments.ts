@@ -16,7 +16,11 @@ import { Config, Merchant, Payment, PublicError } from "./types";
 const EXPIRY_MS = 15 * 60_000;
 const REVIEW_WINDOW_MS = 24 * 60 * 60_000;
 
-/** Load a persisted payment or raise the public not-found error. */
+/** Load a persisted payment or raise the public not-found error.
+ * @param db - Selected environment's database.
+ * @param id - Payment identifier to retrieve.
+ * @returns The persisted payment, rejecting when it does not exist.
+ */
 export async function getPayment(db: D1Database, id: string): Promise<Payment> {
   const payment = await db
     .prepare("SELECT * FROM payments WHERE id = ?")
@@ -27,7 +31,11 @@ export async function getPayment(db: D1Database, id: string): Promise<Payment> {
   return payment;
 }
 
-/** A deterministic capability allows safe idempotent retries without storing plaintext tokens. */
+/** A deterministic capability allows safe idempotent retries without storing plaintext tokens.
+ * @param config - Gateway settings containing the checkout signing secret.
+ * @param payment - Persisted identity to bind into the checkout capability.
+ * @returns The reproducible capability without persisting its plaintext value.
+ */
 export function checkoutToken(
   config: Config,
   payment: Payment,
@@ -38,7 +46,13 @@ export function checkoutToken(
   );
 }
 
-/** Build public payment state without exposing merchant secrets or the keyed backend RPC URL. */
+/** Build public payment state without exposing merchant secrets or the keyed backend RPC URL.
+ * @param db - Database used to load durable candidate attempts.
+ * @param config - Validated settings for public checkout URLs and capability signing.
+ * @param payment - Persisted payment to project into the public response.
+ * @param includeCheckout - Whether the authenticated merchant response includes a checkout link.
+ * @returns Sanitized payment state and, when requested, its capability-bearing checkout link.
+ */
 export async function paymentView(
   db: D1Database,
   config: Config,
@@ -85,7 +99,14 @@ export async function paymentView(
   };
 }
 
-/** Create or recover an idempotent payment; reject reuse of the key with different inputs. */
+/** Create or recover an idempotent payment; reject reuse of the key with different inputs.
+ * @param db - Selected environment's database.
+ * @param config - Validated pricing, network and checkout configuration.
+ * @param merchant - Authenticated merchant owning the payment.
+ * @param input - Untrusted USD-cent amount and merchant reference to validate.
+ * @param key - Merchant-scoped idempotency key.
+ * @returns The persisted new or previously matching payment.
+ */
 export async function createPayment(
   db: D1Database,
   config: Config,
@@ -166,7 +187,12 @@ export async function createPayment(
   return paymentView(db, config, existing, true);
 }
 
-/** Settlement and its deterministic outbox event share one atomic D1 batch. */
+/** Settlement and its deterministic outbox event share one atomic D1 batch.
+ * @param db - Database committing payment and outbox state together.
+ * @param payment - Payment whose finalized transfer has been validated.
+ * @param signature - Validated on-chain transaction signature.
+ * @param payer - Signer established by transfer validation.
+ */
 export async function settle(
   db: D1Database,
   payment: Payment,
@@ -212,7 +238,12 @@ export async function settle(
     );
 }
 
-/** Candidate signatures are durable so verification survives browser disconnects. */
+/** Candidate signatures are durable so verification survives browser disconnects.
+ * @param db - Database retaining verification attempts.
+ * @param config - Validated gateway settings for finalized verification.
+ * @param payment - Authenticated payment receiving the candidate.
+ * @param signature - Candidate signature; recording it is not settlement.
+ */
 export async function submit(
   db: D1Database,
   config: Config,
@@ -258,7 +289,12 @@ export async function submit(
     await verifyCandidate(db, config, payment, signature);
 }
 
-/** Verify finalized evidence; absent transactions remain pending rather than being rejected. */
+/** Verify finalized evidence; absent transactions remain pending rather than being rejected.
+ * @param db - Database used to persist rejection, retry or settlement.
+ * @param config - Validated operator RPC configuration.
+ * @param payment - Payment whose transfer contract must match.
+ * @param signature - Durable candidate signature to inspect.
+ */
 async function verifyCandidate(
   db: D1Database,
   config: Config,
@@ -304,7 +340,10 @@ async function verifyCandidate(
   }
 }
 
-/** Retry due durable candidates; transient failures leave them eligible for later verification. */
+/** Retry due durable candidates; transient failures leave them eligible for later verification.
+ * @param db - Database containing pending candidates and retry eligibility.
+ * @param config - Validated operator RPC and settlement configuration.
+ */
 export async function retryVerification(
   db: D1Database,
   config: Config,

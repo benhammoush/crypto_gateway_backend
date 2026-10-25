@@ -7,12 +7,13 @@
     "node": "24.x"
   },
   "scripts": {
-    "ci:quality": "npm run check && npm audit --audit-level=high",
+    "ci:quality": "npm run check && npm run audit:dependencies",
+    "audit:dependencies": "npm audit && npm audit --omit=dev",
     "dev": "wrangler dev --local --port 8787 --test-scheduled",
     "dev:scheduler": "node scripts/local-scheduler.mjs",
     "db:local": "wrangler d1 migrations apply DB --local",
     "credential:hash": "node scripts/hash-credential.mjs",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && vitest run",

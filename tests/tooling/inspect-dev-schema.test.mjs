@@ -15,7 +15,9 @@ import {
 const { Response, AbortSignal } = globalThis;
 afterEach(() => vi.restoreAllMocks());
 
-/** Synthetic environment; never inherit provider credentials. */
+/** Synthetic environment; never inherit provider credentials.
+ * @returns Isolated schema-inspection scope with synthetic credentials only.
+ */
 function environment() {
   return {
     GITHUB_EVENT_NAME: "workflow_dispatch",
@@ -36,7 +38,11 @@ const migrationTable = {
   sql: "CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT)",
 };
 
-/** Return a read-only D1 query envelope with no application data. */
+/** Return a read-only D1 query envelope with no application data.
+ * @param results - Controlled schema or migration metadata rows.
+ * @param meta - Controlled provider query metrics, including invalid fixtures.
+ * @returns A synthetic D1 query response.
+ */
 function queryResponse(results, meta = {}) {
   return Response.json({
     success: true,
@@ -50,7 +56,11 @@ function queryResponse(results, meta = {}) {
   });
 }
 
-/** Mock only metadata GET and the two source-defined SELECT requests. */
+/** Mock only metadata GET and the two source-defined SELECT requests.
+ * @param catalog - Controlled schema-catalog rows.
+ * @param records - Controlled migration-record rows.
+ * @returns An intercepted transport that rejects unexpected provider requests.
+ */
 function provider(catalog = [], records = []) {
   const env = environment();
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/d1/database/${env.D1_DATABASE_ID}`;
@@ -286,7 +296,9 @@ it("rejects reported writes, missing write metrics, excess rows and malformed qu
 it("cancels oversized response streams", async () => {
   let cancelled = false;
   const stream = new globalThis.ReadableStream({
-    /** Feed the controlled stream used by the response-size test. */
+    /** Feed the controlled stream used by the response-size test.
+     * @param controller - Stream controller receiving the oversized fixture chunk.
+     */
     start(controller) {
       controller.enqueue(new Uint8Array(65_537));
     },

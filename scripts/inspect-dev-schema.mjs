@@ -16,12 +16,17 @@ export const MIGRATIONS_SQL =
 /** Controlled schema-inspection failure safe for the delivery diagnostic boundary. */
 class InspectionError extends Error {}
 
-/** Fail with a source-defined classification, never raw SQL or provider errors. */
+/** Fail with a source-defined classification, never raw SQL or provider errors.
+ * @param condition - Read-only schema or execution guard that must hold.
+ * @param code - Controlled failure label safe for logs.
+ */
 function requireValue(condition, code) {
   if (!condition) throw new InspectionError(code);
 }
 
-/** Derive expected definitions in disposable local memory, never in remote D1. */
+/** Derive expected definitions in disposable local memory, never in remote D1.
+ * @returns Expected source migrations and schema definitions derived locally.
+ */
 export function expectedSchema() {
   const files = readdirSync("migrations")
     .filter((name) => name.endsWith(".sql"))
@@ -42,7 +47,14 @@ export function expectedSchema() {
   }
 }
 
-/** Bound each response and expose only fixed error classifications. */
+/** Bound each response and expose only fixed error classifications.
+ * @param fetcher - Injectable provider transport.
+ * @param url - Fixed selected database metadata or query endpoint.
+ * @param token - Scoped provider credential retained only in request headers.
+ * @param label - Controlled error-classification prefix.
+ * @param sql - Optional fixed read-only query; absent for metadata GETs.
+ * @returns Bounded parsed provider evidence with failures sanitized.
+ */
 async function readProvider(fetcher, url, token, label, sql) {
   const response = await fetcher(url, {
     method: sql === undefined ? "GET" : "POST",
@@ -77,7 +89,13 @@ async function readProvider(fetcher, url, token, label, sql) {
   return body.result;
 }
 
-/** Send only one of the two fixed SELECT statements and reject write/unknown metrics. */
+/** Send only one of the two fixed SELECT statements and reject write/unknown metrics.
+ * @param fetcher - Injectable read-only query transport.
+ * @param endpoint - Selected dev database query endpoint.
+ * @param token - Credential scoped to the selected provider account.
+ * @param sql - One of the two source-defined metadata SELECT statements.
+ * @returns Validated catalog or migration rows, never application records.
+ */
 async function queryCatalog(fetcher, endpoint, token, sql) {
   requireValue(
     sql === CATALOG_SQL || sql === MIGRATIONS_SQL,
@@ -106,7 +124,11 @@ async function queryCatalog(fetcher, endpoint, token, sql) {
   return results;
 }
 
-/** Inspect exact configured dev D1 identity, then schema and migration metadata only. */
+/** Inspect exact configured dev D1 identity, then schema and migration metadata only.
+ * @param env - Manual-main scope and selected dev database identities.
+ * @param fetcher - Injectable read-only metadata/query transport.
+ * @returns Sanitized schema and migration-match observations.
+ */
 export async function inspectDevSchema(env, fetcher = globalThis.fetch) {
   requireValue(
     env.GITHUB_EVENT_NAME === "workflow_dispatch" &&

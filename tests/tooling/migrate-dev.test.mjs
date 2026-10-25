@@ -24,7 +24,9 @@ import {
 } from "../../scripts/migrate-dev.mjs";
 import { migrationDigest } from "../../scripts/check-delivery.mjs";
 
-/** Synthetic scope only; the injected executor never invokes Wrangler or providers. */
+/** Synthetic scope only; the injected executor never invokes Wrangler or providers.
+ * @returns Explicit dev migration scope with synthetic identities only.
+ */
 function environment() {
   return {
     GITHUB_ACTIONS: "true",
@@ -42,7 +44,9 @@ function environment() {
   };
 }
 
-/** Schema observations mirror the separate inspector's fixed sanitized results. */
+/** Schema observations mirror the separate inspector's fixed sanitized results.
+ * @returns Controlled pre-migration schema evidence.
+ */
 function before() {
   return {
     sourceSha: environment().GITHUB_SHA,
@@ -55,7 +59,9 @@ function before() {
     schemaAttestationRecorded: false,
   };
 }
-/** Build the expected post-migration schema evidence. */
+/** Build the expected post-migration schema evidence.
+ * @returns Controlled matching schema and migration-record evidence.
+ */
 function after() {
   return {
     ...before(),

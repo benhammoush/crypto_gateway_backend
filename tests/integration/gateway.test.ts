@@ -26,20 +26,21 @@ import {
   ParsedTransaction,
   validateTransfer,
 } from "../../src/solana";
-import { Env, Payment } from "../../src/types";
+import { Env, Merchant, Payment } from "../../src/types";
+import document from "../../openapi.json";
 import { deliverWebhooks, webhookSignature } from "../../src/webhooks";
 import Ajv from "ajv/dist/2020";
 
-const document = JSON.parse(readFileSync("openapi.json", "utf8"));
+const schemas: unknown = JSON.parse(
+  JSON.stringify(document.components.schemas).replaceAll(
+    "#/components/schemas/",
+    "#/$defs/",
+  ),
+);
 const ajv = new Ajv();
 ajv.addSchema({
   $id: "gateway",
-  $defs: JSON.parse(
-    JSON.stringify(document.components.schemas).replaceAll(
-      "#/components/schemas/",
-      "#/$defs/",
-    ),
-  ),
+  $defs: schemas,
 });
 const validatePayment = ajv.compile({ $ref: "gateway#/$defs/PaymentEnvelope" });
 
@@ -50,7 +51,8 @@ const otherSignature = "1".repeat(63) + "2";
 let mf: Miniflare;
 let env: Env;
 let transaction: ParsedTransaction | null = null;
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock =
+  vi.fn<(url: string, options?: RequestInit) => Promise<Response>>();
 
 beforeAll(async () => {
   mf = new Miniflare(
@@ -88,17 +90,21 @@ beforeEach(async () => {
     ),
   );
   transaction = null;
-  fetchMock = vi.fn(async (url: string, options?: RequestInit) => {
+  fetchMock = vi.fn((url: string, options?: RequestInit) => {
     if (String(url).startsWith("https://api.jup.ag/"))
-      return Response.json({
-        [SOL_MINT]: { usdPrice: "150.25", blockId: 123, decimals: 9 },
-      });
-    const body = JSON.parse(String(options?.body ?? "{}"));
+      return Promise.resolve(
+        Response.json({
+          [SOL_MINT]: { usdPrice: "150.25", blockId: 123, decimals: 9 },
+        }),
+      );
+    if (typeof options?.body !== "string")
+      return Promise.reject(new Error("Unexpected upstream body."));
+    const body = JSON.parse(options.body) as { method?: unknown };
     if (body.method === "getGenesisHash")
-      return Response.json({ result: DEVNET_GENESIS });
+      return Promise.resolve(Response.json({ result: DEVNET_GENESIS }));
     if (body.method === "getTransaction")
-      return Response.json({ result: transaction });
-    throw new Error("Unexpected external request.");
+      return Promise.resolve(Response.json({ result: transaction }));
+    return Promise.reject(new Error("Unexpected external request."));
   });
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -110,7 +116,13 @@ afterAll(async () => {
   await mf?.dispose();
 });
 
-/** Invoke the gateway with controlled request inputs and isolated bindings. */
+/** Invoke the gateway with controlled request inputs and isolated bindings.
+ * @param path - Local gateway route under test.
+ * @param token - Synthetic merchant or checkout credential.
+ * @param body - Optional JSON request body; omitted for GETs.
+ * @param key - Synthetic idempotency key for payment creation.
+ * @returns HTTP status and parsed response after validating successful payment envelopes.
+ */
 async function call(
   path: string,
   token = credential,
@@ -127,10 +139,10 @@ async function call(
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const response = await worker.fetch(request, env);
-  const parsed = (await response.json()) as {
+  const parsed = await response.json<{
     data: Record<string, unknown>;
     error: { code: string };
-  };
+  }>();
   if (response.ok)
     expect(
       validatePayment(parsed),
@@ -139,7 +151,11 @@ async function call(
   return { status: response.status, body: parsed };
 }
 
-/** Create a fixture payment through the HTTP boundary under test. */
+/** Create a fixture payment through the HTTP boundary under test.
+ * @param key - Synthetic merchant-scoped idempotency key.
+ * @param cents - Integer USD cents to quote.
+ * @returns The fixture payment, identifier and checkout capability.
+ */
 async function create(key = "fixture_idempotency_key", cents = 1000) {
   const result = await call(
     "/v1/payments",
@@ -158,7 +174,11 @@ async function create(key = "fixture_idempotency_key", cents = 1000) {
   };
 }
 
-/** Build controlled finalized transfer evidence for the selected payment. */
+/** Build controlled finalized transfer evidence for the selected payment.
+ * @param payment - Persisted fixture payment whose amount and memo must match.
+ * @param sig - Candidate signature included in the finalized evidence.
+ * @returns A controlled parsed transaction for settlement validation.
+ */
 function transfer(payment: Payment, sig = signature): ParsedTransaction {
   return {
     blockTime: Math.floor(payment.created_at / 1000),
@@ -195,7 +215,10 @@ function transfer(payment: Payment, sig = signature): ParsedTransaction {
 
 describe("checkout RPC authorization and limits", () => {
   it("allows the SDK metadata header in approved-origin preflight only", async () => {
-    /** Issue a CORS preflight from the selected test origin. */
+    /** Issue a CORS preflight from the selected test origin.
+     * @param origin - Browser origin to test against checkout CORS policy.
+     * @returns The gateway's preflight response.
+     */
     const preflight = (origin: string) =>
       worker.fetch(
         new Request(
@@ -234,7 +257,13 @@ describe("checkout RPC authorization and limits", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  /** Exercise checkout RPC forwarding using the fixture payment capability. */
+  /** Exercise checkout RPC forwarding using the fixture payment capability.
+   * @param id - Fixture payment identifier.
+   * @param token - Synthetic checkout capability.
+   * @param body - Controlled JSON-RPC request, including invalid-input fixtures.
+   * @param origin - Browser origin to exercise CORS and rate limits.
+   * @returns The gateway RPC response without reaching a real provider.
+   */
   async function rpcCall(
     id: string,
     token: string,
@@ -291,6 +320,7 @@ describe("checkout RPC authorization and limits", () => {
     });
   });
 
+  // Repeated local D1 requests need the same bounded budget as the aggregate-limit test.
   it("bounds upstream calls per checkout and rejects inactive payments", async () => {
     vi.spyOn(Date, "now").mockReturnValue(
       Math.floor(Date.now() / 60_000) * 60_000 + 1,
@@ -298,8 +328,10 @@ describe("checkout RPC authorization and limits", () => {
     const { id, token } = await create();
     const inactive = await create("inactive_checkout_key");
     fetchMock.mockClear();
-    fetchMock.mockImplementation(async () =>
-      Response.json({ jsonrpc: "2.0", id: 1, result: DEVNET_GENESIS }),
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        Response.json({ jsonrpc: "2.0", id: 1, result: DEVNET_GENESIS }),
+      ),
     );
     for (let i = 0; i < 12; i++)
       expect((await rpcCall(id, token)).status).toBe(200);
@@ -326,7 +358,7 @@ describe("checkout RPC authorization and limits", () => {
         )
       ).status,
     ).toBe(503);
-  });
+  }, 30_000);
 });
 
 it("bounds aggregate RPC use across checkout capabilities", async () => {
@@ -334,8 +366,10 @@ it("bounds aggregate RPC use across checkout capabilities", async () => {
   for (let i = 0; i < 6; i++)
     payments.push(await create(`rpc_global_fixture_${i}`));
   fetchMock.mockClear();
-  fetchMock.mockImplementation(async () =>
-    Response.json({ jsonrpc: "2.0", id: 1, result: DEVNET_GENESIS }),
+  fetchMock.mockImplementation(() =>
+    Promise.resolve(
+      Response.json({ jsonrpc: "2.0", id: 1, result: DEVNET_GENESIS }),
+    ),
   );
   const start = Math.floor(Date.now() / 60_000) * 60_000;
   vi.spyOn(Date, "now").mockReturnValue(start + 1);
@@ -366,8 +400,8 @@ it("bounds aggregate RPC use across checkout capabilities", async () => {
 
 describe("pricing", () => {
   it("fails closed on invalid provider data", async () => {
-    fetchMock.mockImplementation(async () =>
-      Response.json({ result: DEVNET_GENESIS }),
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(Response.json({ result: DEVNET_GENESIS })),
     );
     const result = await call("/v1/payments", credential, {
       usdCents: 100,
@@ -410,7 +444,7 @@ describe("merchant API", () => {
       401,
     );
     const other = "fixture_other_merchant_credential_1234567890";
-    const merchants = JSON.parse(env.MERCHANTS_JSON!);
+    const merchants = JSON.parse(env.MERCHANTS_JSON!) as Merchant[];
     const alternateEnv = {
       ...env,
       MERCHANTS_JSON: JSON.stringify([
@@ -479,10 +513,12 @@ describe("settlement", () => {
       (await call(`/v1/checkout/${current.id}`, current.token)).body.data
         .status,
     ).toBe("settled");
-    const txRequest = fetchMock.mock.calls.find(([, options]) =>
-      String(options?.body).includes("getTransaction"),
+    const txRequest = fetchMock.mock.calls.find(
+      ([, options]) =>
+        typeof options?.body === "string" &&
+        options.body.includes("getTransaction"),
     );
-    expect(String(txRequest?.[1]?.body)).toContain("finalized");
+    expect(txRequest?.[1]?.body).toEqual(expect.stringContaining("finalized"));
   });
   it("settles once and atomically creates one outbox event under concurrent verification", async () => {
     const current = await create();
@@ -632,7 +668,7 @@ describe("webhooks", () => {
           await webhookSignature(
             settings.merchants[0].webhookSecret!,
             timestamp,
-            String(options?.body),
+            typeof options?.body === "string" ? options.body : "",
           ),
         );
         expect(options?.redirect).toBe("manual");
@@ -665,7 +701,7 @@ describe("webhooks", () => {
     expect(fetchMock.mock.calls.length).toBe(count);
   });
   it("rejects unapproved and unsafe webhook configuration", () => {
-    const merchants = JSON.parse(env.MERCHANTS_JSON!);
+    const merchants = JSON.parse(env.MERCHANTS_JSON!) as Merchant[];
     for (const url of [
       "http://merchant.example.org/hook",
       "https://127.0.0.1/hook",

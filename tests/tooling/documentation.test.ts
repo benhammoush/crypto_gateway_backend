@@ -5,15 +5,25 @@
 
 import { beforeAll, expect, it } from "vitest";
 import { ESLint } from "eslint";
+import tseslint from "typescript-eslint";
 
-const eslint = new ESLint();
+// Only virtual documentation fixtures lack a TS project entry.
+const eslint = new ESLint({
+  overrideConfig: [
+    { files: ["**/*.{ts,tsx}"], ...tseslint.configs.disableTypeChecked },
+  ],
+});
 const header =
   '/** Fixture module.\n * @packageDocumentation\n */\nimport "fixture";\n';
 // Cold parser/plugin loading belongs to bounded setup, not the per-fixture assertion budget.
 beforeAll(async () => {
   await eslint.lintText(header, { filePath: "src/documentation-fixture.ts" });
 }, 30_000);
-/** Collect only documentation failures, leaving unrelated fixture lint outside this assertion. */
+/** Collect only documentation failures, leaving unrelated fixture lint outside this assertion.
+ * @param source - In-memory fixture whose documentation is under test.
+ * @param filePath - Virtual path selecting the actual JS or TS rules.
+ * @returns Documentation-rule identifiers, rejecting malformed or ignored fixtures.
+ */
 async function errors(
   source: string,
   filePath = "src/documentation-fixture.ts",
@@ -84,7 +94,7 @@ it("accepts documented contracts and exempts ordinary anonymous callbacks", asyn
     expect(
       await errors(
         header +
-          `/** Render fixture. */ export const Component = ${wrapper}(() => null);`,
+          `/** Render fixture. */ export const Component = ${wrapper}(/** Render the fixture.\n * @returns The empty fixture view. */ () => null);`,
       ),
     ).toEqual([]);
     expect(
@@ -93,7 +103,8 @@ it("accepts documented contracts and exempts ordinary anonymous callbacks", asyn
   }
   expect(
     await errors(
-      header + '/** Read the fixture identity. */ const read = () => "id";',
+      header +
+        '/** Read the fixture identity.\n * @returns The fixture identity. */ const read = () => "id";',
     ),
   ).toEqual([]);
   expect(
@@ -123,6 +134,18 @@ it("checks supplied parameter names, descriptions and return descriptions", asyn
   );
 });
 
+it("requires parameter and return tags on implementations and callable contracts", async () => {
+  for (const source of [
+    "/** Preserve identity. */ function read(value: string) { return value; }",
+    "/** Fixture contract. */ interface Fixture { /** Preserve identity. */ read(value: string): string; }",
+    "/** Fixture contract. */ interface Fixture { /** Preserve identity. */ read: (value: string) => string; }",
+  ]) {
+    expect(await errors(header + source)).toEqual(
+      expect.arrayContaining(["jsdoc/require-param", "jsdoc/require-returns"]),
+    );
+  }
+});
+
 it("rejects malformed TSDoc and duplicated TypeScript types", async () => {
   expect(
     await errors(
@@ -142,7 +165,7 @@ it("parses typed TSX before applying documentation rules", async () => {
   const filePath = "src/documentation-fixture.tsx";
   const [result] = await eslint.lintText(
     header +
-      "/** Render fixture. */ const Component = (props: { label: string }) => <div>{props.label}</div>;",
+      "/** Heading properties. */ interface Props { label: string }\n/** Render fixture.\n * @param props - Heading properties.\n * @returns The fixture heading. */ const Component = (props: Props) => <div>{props.label}</div>;",
     { filePath },
   );
   expect(result.fatalErrorCount).toBe(0);
@@ -174,7 +197,7 @@ it("requires JavaScript module and named-helper documentation", async () => {
   );
   expect(
     await errors(
-      '/** Fixture tooling.\n * @file\n */\nimport "fixture";\n/** Read fixture identity. */ const read = () => "id";',
+      '/** Fixture tooling.\n * @file\n */\nimport "fixture";\n/** Read fixture identity.\n * @returns The fixture identity. */ const read = () => "id";',
       "scripts/documentation-fixture.mjs",
     ),
   ).toEqual([]);

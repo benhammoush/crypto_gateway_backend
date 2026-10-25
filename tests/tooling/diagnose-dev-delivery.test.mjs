@@ -14,7 +14,9 @@ const { Response, ReadableStream } = globalThis;
 const version = "11111111-1111-4111-8111-111111111111";
 const tokenId = "b".repeat(32);
 
-/** Fixture target/configuration; no provider credential or network access. */
+/** Fixture target/configuration; no provider credential or network access.
+ * @returns Synthetic account, database and Worker identities.
+ */
 function environment() {
   const database = "22222222-2222-4222-8222-222222222222";
   return {
@@ -59,7 +61,10 @@ function environment() {
   };
 }
 
-/** Serve only fixed GET metadata resources and prohibit all other requests. */
+/** Serve only fixed GET metadata resources and prohibit all other requests.
+ * @param env - Synthetic target identities to reflect in controlled responses.
+ * @returns An intercepted transport limited to the expected metadata resources.
+ */
 function metadata(env) {
   const account = `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}`;
   const worker = `${account}/workers/scripts/crypto-gateway-dev`;
@@ -231,7 +236,9 @@ it("bounds and cancels provider bodies without leaking malformed output or netwo
       if (kind === "malformed") return new Response("synthetic-secret");
       return new Response(
         new ReadableStream({
-          /** Feed oversized response chunks to exercise the body-size boundary. */
+          /** Feed oversized response chunks to exercise the body-size boundary.
+           * @param controller - Stream controller receiving the oversized fixture chunk.
+           */
           start(controller) {
             controller.enqueue(new Uint8Array(65_537));
           },

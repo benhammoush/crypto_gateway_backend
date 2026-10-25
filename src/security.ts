@@ -7,7 +7,11 @@ import { PublicError } from "./types";
 
 const encoder = new TextEncoder();
 
-/** Fixed-size digest comparison; do not compare raw credentials. */
+/** Fixed-size digest comparison; do not compare raw credentials.
+ * @param a - First digest or authentication value with a bounded representation.
+ * @param b - Expected digest or authentication value.
+ * @returns Whether all characters and lengths match without an early content exit.
+ */
 export function equal(a: string, b: string): boolean {
   let difference = a.length ^ b.length;
   for (let i = 0; i < Math.max(a.length, b.length); i++) {
@@ -16,12 +20,19 @@ export function equal(a: string, b: string): boolean {
   return difference === 0;
 }
 
-/** Hash input text for stable request or credential comparison. */
+/** Hash input text for stable request or credential comparison.
+ * @param value - Text to hash without retaining its plaintext representation.
+ * @returns The lowercase hexadecimal SHA-256 digest.
+ */
 export async function sha256(value: string): Promise<string> {
   return hex(await crypto.subtle.digest("SHA-256", encoder.encode(value)));
 }
 
-/** Authenticate text with the supplied secret rather than exposing the secret itself. */
+/** Authenticate text with the supplied secret rather than exposing the secret itself.
+ * @param secret - Server-only HMAC signing key.
+ * @param value - Exact text to authenticate.
+ * @returns The lowercase hexadecimal HMAC-SHA-256 signature.
+ */
 export async function hmac(secret: string, value: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
@@ -33,14 +44,20 @@ export async function hmac(secret: string, value: string): Promise<string> {
   return hex(await crypto.subtle.sign("HMAC", key, encoder.encode(value)));
 }
 
-/** Encode raw digest bytes as lowercase hexadecimal. */
+/** Encode raw digest bytes as lowercase hexadecimal.
+ * @param bytes - Raw digest bytes.
+ * @returns Two lowercase hexadecimal characters per byte.
+ */
 function hex(bytes: ArrayBuffer): string {
   return [...new Uint8Array(bytes)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
 }
 
-/** Decode base58 to validate exact key/signature byte lengths, not just a regex. */
+/** Decode base58 to validate exact key/signature byte lengths, not just a regex.
+ * @param value - Bounded base58 key or signature text.
+ * @returns Decoded byte length, or -1 for invalid or excessive input.
+ */
 export function base58Length(value: string): number {
   const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
   if (!value || value.length > 100) return -1;
@@ -58,7 +75,10 @@ export function base58Length(value: string): number {
   return bytes + (value.match(/^1*/)?.[0].length ?? 0);
 }
 
-/** Extract the bearer credential or raise the controlled authentication failure. */
+/** Extract the bearer credential or raise the controlled authentication failure.
+ * @param request - Incoming request carrying the authorization header.
+ * @returns The syntactically valid bearer credential, not proof of authorization.
+ */
 export function bearer(request: Request): string {
   const header = request.headers.get("authorization") ?? "";
   const match = /^Bearer ([A-Za-z0-9_-]{32,256})$/.exec(header);
@@ -71,7 +91,10 @@ export function bearer(request: Request): string {
   return match[1];
 }
 
-/** Bound the streamed body as well as Content-Length. */
+/** Bound the streamed body as well as Content-Length.
+ * @param request - Request or upstream response with JSON headers and a readable body.
+ * @returns A parsed JSON object, rejecting non-objects and oversized bodies.
+ */
 export async function jsonBody(
   request: Pick<Request, "headers" | "body">,
 ): Promise<Record<string, unknown>> {

@@ -57,7 +57,11 @@ export interface Payment {
 
 /** Controlled gateway failure safe to serialize to a public response. */
 export class PublicError extends Error {
-  /** Retain the public error code, message and HTTP status for the response boundary. */
+  /** Retain the public error code, message and HTTP status for the response boundary.
+   * @param code - Stable public gateway error code.
+   * @param message - Controlled explanation safe for the caller.
+   * @param status - HTTP status, defaulting to a rejected client request.
+   */
   constructor(
     public code: string,
     message: string,

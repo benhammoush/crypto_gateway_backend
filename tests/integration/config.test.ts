@@ -5,7 +5,7 @@
 
 import { afterEach, expect, it, vi } from "vitest";
 import Ajv from "ajv/dist/2020";
-import { readFileSync } from "node:fs";
+import document from "../../openapi.json";
 import { config, ConfigurationError } from "../../src/config";
 import worker from "../../src/index";
 import { Env } from "../../src/types";
@@ -31,7 +31,6 @@ const env: Env = {
   JUPITER_API_KEY: secret,
   MERCHANTS_JSON: JSON.stringify([merchant]),
 };
-const document = JSON.parse(readFileSync("openapi.json", "utf8"));
 const validateError = new Ajv().compile(
   document.components.schemas.ErrorEnvelope,
 );
@@ -106,15 +105,16 @@ it.each(failures)(
       },
     );
     const text = await response.text();
-    const body = JSON.parse(text);
+    const body = JSON.parse(text) as { error: Record<string, unknown> };
     expect(response.status).toBe(503);
     expect(body.error).toEqual({
       code: "NOT_CONFIGURED",
       message: "Gateway configuration is incomplete.",
-      requestId: expect.any(String),
+      requestId: response.headers.get("x-request-id"),
       diagnostic: code,
     });
     expect(body.error.requestId).toBe(response.headers.get("x-request-id"));
+    expect(body.error.requestId).toEqual(expect.any(String));
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(text).not.toContain(secret);
     expect(validateError(body)).toBe(true);
@@ -144,14 +144,15 @@ it.each([
       },
     );
     expect(response.status).toBe(503);
-    const body = await response.json();
+    const body = await response.json<unknown>();
     expect(body).toEqual({
       error: {
         code: "NOT_CONFIGURED",
         message: "Gateway configuration is incomplete.",
-        requestId: expect.any(String),
+        requestId: response.headers.get("x-request-id"),
       },
     });
+    expect(response.headers.get("x-request-id")).toEqual(expect.any(String));
   },
 );
 
@@ -165,7 +166,8 @@ it("does not expose unexpected exceptions as diagnostic messages", async () => {
   );
   const text = await response.text();
   expect(response.status).toBe(503);
-  expect(JSON.parse(text).error).not.toHaveProperty("diagnostic");
+  const body = JSON.parse(text) as { error: unknown };
+  expect(body.error).not.toHaveProperty("diagnostic");
   expect(text).not.toContain(secret);
 });
 

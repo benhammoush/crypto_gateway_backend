@@ -17,7 +17,9 @@ import { smokeDelivery } from "../../scripts/smoke-delivery.mjs";
 
 const { version } = JSON.parse(readFileSync("package.json", "utf8"));
 
-/** Synthetic first-dev state; no network or real credentials are used. */
+/** Synthetic first-dev state; no network or real credentials are used.
+ * @returns Isolated bootstrap context, injectable boundaries and captured evidence.
+ */
 function fixture() {
   const id = "11111111-1111-4111-8111-111111111111";
   const workerId = "b".repeat(32);
@@ -78,7 +80,9 @@ function fixture() {
   const calls = [];
   const records = [];
   const dependencies = {
-    /** Supply controlled schema-inspection evidence without changing a database. */
+    /** Supply controlled schema-inspection evidence without changing a database.
+     * @returns Matching fixture schema evidence.
+     */
     inspect: async () => ({
       sourceSha: env.SOURCE_SHA,
       databaseIdentityMatched: true,
@@ -86,19 +90,30 @@ function fixture() {
       migrationTablePresent: true,
       expectedMigrationSetDigest: env.D1_SCHEMA_DIGEST,
     }),
-    /** Count the deployment command invocations requested by the fixture. */
+    /** Count the deployment command invocations requested by the fixture.
+     * @returns Synthetic success without executing a deployment command.
+     */
     execute: async () => {
       executed++;
       return true;
     },
-    /** Supply successful configuration smoke evidence with payments disabled. */
+    /** Supply successful configuration smoke evidence with payments disabled.
+     * @returns Controlled configuration-only smoke observations.
+     */
     smoke: async () => ({
       configurationSmokeVerified: true,
       paymentsEnabled: false,
     }),
-    /** Retain emitted bootstrap evidence for the assertion. */
+    /** Retain emitted bootstrap evidence for the assertion.
+     * @param record - Sanitized bootstrap evidence emitted by the controller.
+     * @returns The number of captured evidence records.
+     */
     record: (record) => records.push(record),
-    /** Assert metadata-only request constraints and return controlled provider state. */
+    /** Assert metadata-only request constraints and return controlled provider state.
+     * @param url - Fixed metadata endpoint requested by the controller.
+     * @param options - Request options to inspect for safe read-only behavior.
+     * @returns The controlled provider response for that endpoint.
+     */
     fetcher: async (url, options) => {
       calls.push({ url, options });
       expect(options.method).toBe("GET");
@@ -147,7 +162,9 @@ function fixture() {
     dependencies,
     calls,
     records,
-    /** Expose the command-execution count for the assertion. */
+    /** Expose the command-execution count for the assertion.
+     * @returns The number of synthetic execution requests.
+     */
     executions: () => executed,
   };
 }

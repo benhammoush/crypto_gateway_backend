@@ -36,7 +36,12 @@ export interface ParsedTransaction {
   };
 }
 
-/** Send a bounded JSON-RPC request and reject transport or RPC-level failure. */
+/** Send a bounded JSON-RPC request and reject transport or RPC-level failure.
+ * @param url - Operator-configured RPC endpoint, which may contain a private key.
+ * @param method - Solana RPC method selected by trusted gateway code.
+ * @param params - Method parameters, including explicit finality when required.
+ * @returns The RPC result for subsequent domain validation; upstream failures are sanitized.
+ */
 export async function rpc<T>(
   url: string,
   method: string,
@@ -50,7 +55,7 @@ export async function rpc<T>(
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
       signal: AbortSignal.timeout(8000),
     });
-    const body = (await response.json()) as { error?: unknown; result?: T };
+    const body = await response.json<{ error?: unknown; result?: T }>();
     if (!response.ok || body.error || !("result" in body)) throw new Error();
     return body.result as T;
   } catch {
@@ -62,7 +67,9 @@ export async function rpc<T>(
   }
 }
 
-/** Require the configured RPC endpoint to report the Solana Devnet genesis identity. */
+/** Require the configured RPC endpoint to report the Solana Devnet genesis identity.
+ * @param url - Operator RPC endpoint whose reported network must be Devnet.
+ */
 export async function assertDevnet(url: string): Promise<void> {
   if ((await rpc<string>(url, "getGenesisHash")) !== DEVNET_GENESIS) {
     throw new PublicError(
@@ -73,7 +80,10 @@ export async function assertDevnet(url: string): Promise<void> {
   }
 }
 
-/** Accept only account-free SetComputeUnitLimit(u32) / SetComputeUnitPrice(u64). */
+/** Accept only account-free SetComputeUnitLimit(u32) / SetComputeUnitPrice(u64).
+ * @param instruction - Parsed transaction instruction to validate structurally.
+ * @returns The recognized compute-budget instruction kind, or null when unsupported.
+ */
 function computeBudgetKind(instruction: ParsedInstruction): number | null {
   if (
     instruction?.programId !== COMPUTE_BUDGET_PROGRAM ||
@@ -96,7 +106,12 @@ function computeBudgetKind(instruction: ParsedInstruction): number | null {
     : null;
 }
 
-/** Verify transfer + memo, optionally preceded by unique compute limit/price settings. */
+/** Verify transfer + memo, optionally preceded by unique compute limit/price settings.
+ * @param tx - Finalized transaction evidence from the configured Devnet RPC.
+ * @param signature - Candidate signature that must match the transaction.
+ * @param payment - Persisted amount, recipient, memo and timing contract.
+ * @returns The validated payer address; any mismatch rejects settlement.
+ */
 export function validateTransfer(
   tx: ParsedTransaction,
   signature: string,

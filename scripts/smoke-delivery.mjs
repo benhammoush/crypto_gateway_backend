@@ -6,7 +6,10 @@ import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
 import { pathToFileURL, URL } from "node:url";
 
-/** Read one bounded JSON body without redirects or retry, including expected 503. */
+/** Read one bounded JSON body without redirects or retry, including expected 503.
+ * @param response - Selected gateway health/readiness response.
+ * @returns Parsed response JSON, rejecting oversized or malformed bodies.
+ */
 export async function readJson(response) {
   const chunks = [];
   let size = 0;
@@ -22,7 +25,11 @@ export async function readJson(response) {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
-/** Disabled readiness is exactly 503/ready:false, not arbitrary failure. */
+/** Disabled readiness is exactly 503/ready:false, not arbitrary failure.
+ * @param env - Explicit API origin and expected target configuration.
+ * @param fetcher - Injectable bounded transport; never creates payments.
+ * @returns Configuration-smoke observations, not payment acceptance.
+ */
 export async function smokeDelivery(env, fetcher = globalThis.fetch) {
   const origin = new URL(env.API_ORIGIN);
   assert.equal(origin.origin, env.API_ORIGIN);

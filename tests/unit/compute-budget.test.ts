@@ -32,7 +32,9 @@ const payment: Payment = {
   payer: null,
   settled_at: null,
 };
-/** Build finalized payment evidence before inserting the instruction under test. */
+/** Build finalized payment evidence before inserting the instruction under test.
+ * @returns Controlled finalized transfer and memo evidence.
+ */
 function transaction(): ParsedTransaction {
   return {
     blockTime: 2,
@@ -64,7 +66,10 @@ function transaction(): ParsedTransaction {
 }
 
 // Independent fixture encoding covers unsigned wire boundaries without Number rounding.
-/** Encode controlled instruction bytes as base58 for parsed-transaction fixtures. */
+/** Encode controlled instruction bytes as base58 for parsed-transaction fixtures.
+ * @param bytes - Controlled instruction bytes, including intentionally invalid fixtures.
+ * @returns Their base58 representation for validation tests.
+ */
 function encode(bytes: number[]): string {
   const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
   let value = bytes.reduce((result, byte) => result * 256n + BigInt(byte), 0n);

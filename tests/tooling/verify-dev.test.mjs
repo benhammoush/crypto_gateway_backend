@@ -10,7 +10,9 @@ import { verifyDev } from "../../scripts/verify-dev.mjs";
 const { Response, AbortSignal } = globalThis;
 afterEach(() => vi.restoreAllMocks());
 
-/** Synthetic configuration; no provider credentials or calls. */
+/** Synthetic configuration; no provider credentials or calls.
+ * @returns Manual-main dev context with synthetic resource identities.
+ */
 function environment() {
   return {
     GITHUB_EVENT_NAME: "workflow_dispatch",
@@ -23,7 +25,10 @@ function environment() {
   };
 }
 
-/** Return only fixture metadata from the two permitted read endpoints. */
+/** Return only fixture metadata from the two permitted read endpoints.
+ * @param env - Synthetic database and Worker identities to validate.
+ * @returns An intercepted metadata-only transport.
+ */
 function provider(env) {
   return vi.fn(async (url, init) => {
     expect(init.method).toBe("GET");
@@ -66,7 +71,9 @@ it.each([undefined, "false", "true"])(
 it("cancels oversized response streams", async () => {
   let cancelled = false;
   const stream = new globalThis.ReadableStream({
-    /** Feed the controlled stream used by the response-size test. */
+    /** Feed the controlled stream used by the response-size test.
+     * @param controller - Stream controller receiving the oversized fixture chunk.
+     */
     start(controller) {
       controller.enqueue(new Uint8Array(65_537));
     },

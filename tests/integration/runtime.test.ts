@@ -43,7 +43,10 @@ beforeAll(async () => {
           },
         ]),
       },
-      /** Supply controlled upstream responses and record webhook deliveries. */
+      /** Supply controlled upstream responses and record webhook deliveries.
+       * @param request - Outbound request intercepted from the local Worker runtime.
+       * @returns A controlled pricing, RPC or webhook response without network access.
+       */
       outboundService: async (request) => {
         outgoing.push(request.url);
         if (request.url === "https://merchant.example.org/webhook") {
