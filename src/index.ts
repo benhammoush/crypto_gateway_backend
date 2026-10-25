@@ -17,7 +17,11 @@ import { base58Length, bearer, equal, jsonBody, sha256 } from "./security";
 import { Config, Env, PublicError } from "./types";
 import { deliverWebhooks } from "./webhooks";
 
-/** Consume the database-backed request budget for this identity. */
+/** Consume the database-backed request budget for this identity.
+ * @param db - Selected environment's database binding.
+ * @param identity - Rate-limit identity scoped to the authenticated operation.
+ * @param limit - Maximum requests allowed in the current minute window.
+ */
 async function rateLimit(
   db: D1Database,
   identity: string,
@@ -40,7 +44,14 @@ async function rateLimit(
     );
 }
 
-/** Build a JSON response with request correlation and allowed-origin headers. */
+/** Build a JSON response with request correlation and allowed-origin headers.
+ * @param data - Public response envelope, never raw provider or credential data.
+ * @param requestId - Correlation identifier for this request.
+ * @param origin - Browser origin supplied by the request, if present.
+ * @param allowed - Configured origin permitted to read this response.
+ * @param status - HTTP response status.
+ * @returns A non-cacheable JSON response with scoped CORS headers.
+ */
 function response(
   data: unknown,
   requestId: string,
@@ -58,7 +69,7 @@ function response(
       "x-request-id": requestId,
       ...(origin === allowed
         ? {
-            "access-control-allow-origin": origin!,
+            "access-control-allow-origin": origin,
             vary: "Origin",
             "access-control-allow-methods": "GET, POST, OPTIONS",
             "access-control-allow-headers":
@@ -70,7 +81,11 @@ function response(
 }
 
 export default {
-  /** Validate configuration, authenticate and dispatch the incoming gateway request. */
+  /** Validate configuration, authenticate and dispatch the incoming gateway request.
+   * @param request - Incoming HTTP request at the gateway boundary.
+   * @param env - Selected environment's bindings and configuration.
+   * @returns A public response with credentials and upstream details withheld.
+   */
   async fetch(request: Request, env: Env): Promise<Response> {
     const requestId = crypto.randomUUID();
     const origin = request.headers.get("origin");
@@ -254,7 +269,10 @@ export default {
       );
     }
   },
-  /** Retry durable settlement candidates and pending webhook deliveries. */
+  /** Retry durable settlement candidates and pending webhook deliveries.
+   * @param _event - Platform cron event; retry eligibility comes from persisted state.
+   * @param env - Selected environment's database and gateway configuration.
+   */
   async scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
     const settings = config(env);
     if (!settings.enabled) return;

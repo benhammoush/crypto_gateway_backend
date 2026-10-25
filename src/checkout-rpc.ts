@@ -7,7 +7,12 @@ import { base58Length, jsonBody } from "./security";
 import { DEVNET_GENESIS } from "./solana";
 import { Payment, PublicError } from "./types";
 
-/** Forward only bounded, read-only wallet preparation calls to operator configuration. */
+/** Forward only bounded, read-only wallet preparation calls to operator configuration.
+ * @param url - Operator-configured RPC endpoint, never a browser-supplied URL.
+ * @param payment - Authenticated payment whose expiry and submission state gate preparation.
+ * @param input - Untrusted JSON-RPC request to validate against the read-only allowlist.
+ * @returns A sanitized JSON-RPC result using the caller's request identifier.
+ */
 export async function checkoutRpc(
   url: string,
   payment: Payment,
@@ -20,6 +25,7 @@ export async function checkoutRpc(
       409,
     );
   const { id, method, params } = input;
+  const option: unknown = Array.isArray(params) ? params[0] : undefined;
   if (
     Object.keys(input).some(
       (key) => !["jsonrpc", "id", "method", "params"].includes(key),
@@ -34,11 +40,12 @@ export async function checkoutRpc(
       (method === "getGenesisHash" && params.length === 0) ||
       (method === "getLatestBlockhash" &&
         params.length === 1 &&
-        params[0] &&
-        typeof params[0] === "object" &&
-        !Array.isArray(params[0]) &&
-        Object.keys(params[0]).length === 1 &&
-        params[0].commitment === "finalized")
+        option &&
+        typeof option === "object" &&
+        !Array.isArray(option) &&
+        Object.keys(option).length === 1 &&
+        "commitment" in option &&
+        option.commitment === "finalized")
     )
   )
     throw new PublicError(

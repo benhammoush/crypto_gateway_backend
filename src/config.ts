@@ -22,13 +22,19 @@ type ConfigurationDiagnostic =
 
 /** Fixed classifications only; never retain parser errors or configuration values. */
 export class ConfigurationError extends Error {
-  /** Retain the fixed diagnostic code rather than the failing secret binding value. */
+  /** Retain the fixed diagnostic code rather than the failing secret binding value.
+   * @param diagnostic - Allowlisted setup failure label safe for public responses.
+   */
   constructor(readonly diagnostic: ConfigurationDiagnostic) {
     super("Gateway configuration is incomplete.");
   }
 }
 
-/** Validate an absolute URL and report only its fixed configuration diagnostic. */
+/** Validate an absolute URL and report only its fixed configuration diagnostic.
+ * @param value - Configured URL, which may be missing or contain private details.
+ * @param diagnostic - Controlled label used if URL validation fails.
+ * @returns The parsed absolute URL, rejecting without exposing its input.
+ */
 function configurationUrl(
   value: string | undefined,
   diagnostic: ConfigurationDiagnostic,
@@ -40,7 +46,10 @@ function configurationUrl(
   }
 }
 
-/** Validate configuration without probing dependencies. Missing setup fails closed. */
+/** Validate configuration without probing dependencies. Missing setup fails closed.
+ * @param env - Selected Worker's bindings and runtime configuration.
+ * @returns Validated gateway settings, or a controlled configuration failure.
+ */
 export function config(env: Env): Config {
   if (!["local", "dev", "production"].includes(env.APP_ENV ?? ""))
     throw new ConfigurationError("APP_ENV_INVALID");

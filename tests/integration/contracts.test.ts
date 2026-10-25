@@ -4,12 +4,11 @@
  */
 
 import Ajv from "ajv/dist/2020";
-import { readFileSync } from "node:fs";
+import document from "../../openapi.json";
 import { expect, it } from "vitest";
 
-const document = JSON.parse(readFileSync("openapi.json", "utf8"));
 const ajv = new Ajv({ strict: true });
-const schemas = JSON.parse(
+const schemas: unknown = JSON.parse(
   JSON.stringify(document.components.schemas).replaceAll(
     "#/components/schemas/",
     "#/$defs/",

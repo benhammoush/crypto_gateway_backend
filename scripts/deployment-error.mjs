@@ -16,7 +16,10 @@ const providerCodes = new Set([
   10000, 10001, 10007, 10021, 10034, 10042, 10063, 9109, 7000, 7003,
 ]);
 
-/** Extract only allowlisted values from bounded, captured Wrangler output. */
+/** Extract only allowlisted values from bounded, captured Wrangler output.
+ * @param error - Captured process failure, which may contain sensitive provider output.
+ * @returns Only allowlisted deployment-failure classifications.
+ */
 export function classifyDeploymentError(error) {
   const output = [error?.stdout, error?.stderr]
     .filter((value) => typeof value === "string")
@@ -54,7 +57,10 @@ export function classifyDeploymentError(error) {
   };
 }
 
-/** Preserve the uncertain checkpoint/status; append only the classifier's fixed schema. */
+/** Preserve the uncertain checkpoint/status; append only the classifier's fixed schema.
+ * @param diagnostic - Sanitized failure classification.
+ * @param path - Existing delivery-record file whose uncertain checkpoint must remain intact.
+ */
 export function retainDeploymentFailure(
   diagnostic,
   path = "delivery-record.json",
@@ -72,7 +78,11 @@ export function retainDeploymentFailure(
   }
 }
 
-/** Pass through the exact mutation once; suppress raw errors even if evidence retention fails. */
+/** Pass through the exact mutation once; suppress raw errors even if evidence retention fails.
+ * @param execute - Injectable process executor; never retried.
+ * @param retain - Sink for sanitized failure evidence.
+ * @returns A one-attempt executor that withholds raw provider failures.
+ */
 export function deploymentExecutor(
   execute = execFileSync,
   retain = retainDeploymentFailure,

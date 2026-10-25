@@ -14,7 +14,12 @@ interface EventRow {
   attempts: number;
 }
 
-/** The exact raw body is signed. Consumers enforce timestamp tolerance and event deduplication. */
+/** The exact raw body is signed. Consumers enforce timestamp tolerance and event deduplication.
+ * @param secret - Merchant-specific server-only webhook signing secret.
+ * @param timestamp - Unix timestamp in seconds included in the signature header.
+ * @param body - Exact serialized event bytes represented as text.
+ * @returns The timestamped HMAC header value for this delivery attempt.
+ */
 export async function webhookSignature(
   secret: string,
   timestamp: number,
@@ -23,7 +28,10 @@ export async function webhookSignature(
   return `t=${timestamp},v1=${await hmac(secret, `${timestamp}.${body}`)}`;
 }
 
-/** Bounded, leased, at-least-once delivery. Runtime must enforce public-only fetch. */
+/** Bounded, leased, at-least-once delivery. Runtime must enforce public-only fetch.
+ * @param db - Database containing durable outbox events and delivery leases.
+ * @param config - Validated merchant destinations and signing secrets.
+ */
 export async function deliverWebhooks(
   db: D1Database,
   config: Config,

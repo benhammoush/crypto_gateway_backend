@@ -26,7 +26,9 @@ await publishWorker(
     config: "wrangler.delivery.json",
     entry: "dist/index.js",
     configuration: config,
-    /** Verify health/readiness without creating, submitting or settling a payment. */
+    /** Verify health/readiness without creating, submitting or settling a payment.
+     * @param fetcher - Bounded transport supplied by the trusted release controller.
+     */
     smoke: async (fetcher) => {
       await smokeDelivery(process.env, fetcher);
     },

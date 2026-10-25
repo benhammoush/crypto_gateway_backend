@@ -117,7 +117,11 @@ export function hostedConfig(env, digest) {
   return config;
 }
 
-/** Validate isolated hosted delivery; bootstrap has its own strict gate. */
+/** Validate isolated hosted delivery; bootstrap has its own strict gate.
+ * @param env - Selected release scope, identities and explicit target configuration.
+ * @param digest - Reviewed migration-set digest to match before delivery.
+ * @returns Validated isolated Worker configuration.
+ */
 export function deliveryConfig(env, digest) {
   return hostedConfig(env, digest);
 }

@@ -11,7 +11,9 @@ import {
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 
-/** Create public synthetic configuration without provider access. */
+/** Create public synthetic configuration without provider access.
+ * @returns Isolated delivery identities and controlled target settings.
+ */
 function fixture() {
   const id = "11111111-1111-4111-8111-111111111111";
   const config = {

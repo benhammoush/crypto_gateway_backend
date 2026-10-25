@@ -10,7 +10,10 @@ import { hostedConfig, migrationDigest } from "./check-delivery.mjs";
 import { inspectDevSchema } from "./inspect-dev-schema.mjs";
 import { readJson, smokeDelivery } from "./smoke-delivery.mjs";
 
-/** Require explicit first-dev authorization and successful empty-history reads. */
+/** Require explicit first-dev authorization and successful empty-history reads.
+ * @param env - Explicit bootstrap authorization and isolated dev identities.
+ * @returns Validated first-dev Worker configuration, rejecting ambiguous state.
+ */
 export function bootstrapConfig(env) {
   assert.equal(env.GITHUB_ACTIONS, "true");
   assert.equal(env.GITHUB_EVENT_NAME, "workflow_dispatch");
@@ -27,7 +30,12 @@ export function bootstrapConfig(env) {
   return { ...config, preview_urls: false };
 }
 
-/** Fixed metadata GETs only; do not print provider bodies or retry failures. */
+/** Fixed metadata GETs only; do not print provider bodies or retry failures.
+ * @param env - Selected account and its scoped provider credential.
+ * @param path - Fixed metadata path beneath the account's Workers API.
+ * @param fetcher - Injectable metadata-only transport.
+ * @returns The bounded provider response for identity validation.
+ */
 async function metadata(env, path, fetcher) {
   const response = await fetcher(
     `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/workers/${path}`,
@@ -49,7 +57,12 @@ async function metadata(env, path, fetcher) {
   return body;
 }
 
-/** A successful new-API empty-version inventory, NOT a legacy 404, permits bootstrap. */
+/** A successful new-API empty-version inventory, NOT a legacy 404, permits bootstrap.
+ * @param env - Selected dev Worker identities.
+ * @param fetcher - Injectable metadata-only transport.
+ * @param empty - Whether the pre-bootstrap version inventory must be empty.
+ * @returns Validated Worker and version observations.
+ */
 async function workerState(env, fetcher, empty) {
   const path = `workers/${env.EXPECTED_WORKER_ID}`;
   const { result: worker } = await metadata(env, path, fetcher);
@@ -88,7 +101,12 @@ async function workerState(env, fetcher, empty) {
   return versions.result[0].id;
 }
 
-/** Use pinned Wrangler exactly once with explicit config in the selected source root. */
+/** Use pinned Wrangler exactly once with explicit config in the selected source root.
+ * @param env - Bootstrap execution scope and account identity.
+ * @param config - Validated isolated Worker configuration.
+ * @param spawn - Injectable one-attempt process executor.
+ * @returns Whether the single captured Wrangler command succeeded.
+ */
 export function runBootstrapCommand(env, config, spawn = spawnSync) {
   const path = resolve("wrangler.bootstrap.json");
   writeFileSync(
@@ -126,7 +144,16 @@ export function runBootstrapCommand(env, config, spawn = spawnSync) {
   }
 }
 
-/** One attempt followed by metadata/schema/smoke inspection; failure never retries. */
+/** One attempt followed by metadata/schema/smoke inspection; failure never retries.
+ * @param env - Explicitly authorized first-dev execution context.
+ * @param dependencies - Injectable boundaries; fixtures must not reach real providers.
+ * @param dependencies.fetcher - Metadata transport.
+ * @param dependencies.inspect - Read-only database schema inspector.
+ * @param dependencies.execute - One-attempt bootstrap executor.
+ * @param dependencies.smoke - Bounded post-bootstrap configuration checks.
+ * @param dependencies.record - Evidence sink retaining uncertain outcomes too.
+ * @returns Sanitized bootstrap evidence, never user acceptance or recovery certification.
+ */
 export async function bootstrapDev(
   env,
   {
@@ -138,7 +165,9 @@ export async function bootstrapDev(
   } = {},
 ) {
   const config = bootstrapConfig(env);
-  /** Inspect the expected database schema without applying changes. */
+  /** Inspect the expected database schema without applying changes.
+   * @returns Matching schema evidence for the selected source and database.
+   */
   const inspectSchema = async () => {
     const schema = await inspect(env);
     assert.equal(schema.sourceSha, env.SOURCE_SHA);
@@ -207,7 +236,10 @@ if (
   pathToFileURL(process.argv[1]).href === import.meta.url
 ) {
   try {
-    /** Append the inspected state to the retained bootstrap evidence. */
+    /** Append the inspected state to the retained bootstrap evidence.
+     * @param value - Sanitized bootstrap observation to retain.
+     * @returns Completion after appending the evidence.
+     */
     const record = (value) =>
       appendFileSync(
         process.env.GITHUB_STEP_SUMMARY,
