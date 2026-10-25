@@ -57,3 +57,6 @@ exhausted events require operator review before an authorized replay.
 
 See [the API specification](openapi.json) for endpoints, authentication and
 request/response formats.
+
+See [the payment architecture](docs/architecture.md) for quote arithmetic,
+transaction verification and concurrency boundaries.
