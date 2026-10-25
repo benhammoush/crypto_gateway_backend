@@ -61,7 +61,9 @@ function fixture() {
 
 describe('manual production delivery guard', () => {
   it('uses the shared dev deployment lock without an override', () => {
-    const ci = parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
+    const ci = parse(
+      readFileSync('.github/workflows/verify-and-deploy-dev.yml', 'utf8'),
+    );
     expect(ci.jobs.deploy_dev.with.environment).toBe('dev');
     expect(ci.jobs.deploy_dev.with.lock_scope).toBeUndefined();
   });
@@ -141,14 +143,17 @@ describe('manual production delivery guard', () => {
     expect(() => deliveryConfig(env, migrationDigest())).toThrow();
   });
   it('gates deployment behind existing checks and never applies hosted migrations', () => {
-    const workflow = readFileSync('.github/workflows/ci.yml', 'utf8');
+    const workflow = readFileSync(
+      '.github/workflows/verify-and-deploy-dev.yml',
+      'utf8',
+    );
     expect(workflow).toContain('needs: verify');
     expect(workflow).toContain('environment: dev');
     expect(workflow).toMatch(
       /ci-cd-workflows\/\.github\/workflows\/deploy-worker.yml@[a-f0-9]{40}/,
     );
     const production = readFileSync(
-      '.github/workflows/deploy-production.yml',
+      '.github/workflows/verify-and-deploy-prod.yml',
       'utf8',
     );
     expect(production).toContain('needs: verify_release');

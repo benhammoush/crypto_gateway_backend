@@ -1,0 +1,37 @@
+# Verifies exact main revisions, then delivers the tested artifact to dev.
+name: Verify and deploy to dev
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Exact merged source SHA to revalidate and redeploy in dev
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    name: Dev checks
+    uses: benhammoush/ci-cd-workflows/.github/workflows/verify-worker.yml@d1143395dc6a078ef284978c1daf039ed06ff7d1
+    with:
+      automation_sha: d1143395dc6a078ef284978c1daf039ed06ff7d1
+      source_sha: ${{ inputs.sha || github.sha }}
+      environment: dev
+      node_version: '24'
+  deploy_dev:
+    name: Dev delivery
+    needs: verify
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    uses: benhammoush/ci-cd-workflows/.github/workflows/deploy-worker.yml@d1143395dc6a078ef284978c1daf039ed06ff7d1
+    with:
+      automation_sha: d1143395dc6a078ef284978c1daf039ed06ff7d1
+      source_sha: ${{ inputs.sha || github.sha }}
+      environment: dev
+      node_version: '24'
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      IRIS_REFRESH_TOKEN: ${{ secrets.IRIS_REFRESH_TOKEN }}
