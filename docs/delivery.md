@@ -1,5 +1,19 @@
 # Delivery contract
 
+## D1 merchant onboarding prerequisite
+
+The source now authenticates merchants from D1, not `MERCHANTS_JSON`. Before a
+hosted cutover, separately approve/apply `0002_merchants.sql`, provision the intended
+merchant IDs, configure `MERCHANT_ENCRYPTION_KEYS` for webhook delivery, and read
+back schema/migration state before updating the migration-set attestation. No
+existing-merchant importer is provided. Missing D1 merchants block their API keys;
+configuration-only readiness does not prove merchant availability or webhook
+decryption. Preserve existing secrets/payment data pending explicit acceptance.
+The retired first-schema tool must not apply this initialized-target migration.
+See [merchant onboarding](merchant-onboarding.md) for operator authorization,
+serialization, credential handling and encryption-key recovery. This source change
+does not authorize hosted provisioning, secret changes, migration or deployment.
+
 ## Versioned CI/CD entry points
 
 The parent-scoped Miniflare override keeps Undici on patched 7.30.1 while retaining

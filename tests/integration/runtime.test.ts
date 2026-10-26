@@ -5,8 +5,7 @@
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
-import { readFileSync } from 'node:fs';
-import { sha256 } from '../../src/security';
+import { migrate, seedMerchant, fixtureKeys } from '../fixtures';
 import { MEMO_PROGRAM, ParsedTransaction } from '../../src/solana';
 import { SOL_MINT } from '../../src/price';
 
@@ -33,15 +32,7 @@ beforeAll(async () => {
         JUPITER_API_KEY: 'fixture',
         SOLANA_RPC_URL: 'https://rpc.example.org',
         WEBHOOK_HOSTS: 'merchant.example.org',
-        MERCHANTS_JSON: JSON.stringify([
-          {
-            id: 'fixture',
-            apiKeyHash: await sha256(credential),
-            recipient,
-            webhookUrl: 'https://merchant.example.org/webhook',
-            webhookSecret: 'runtime_fixture_webhook_secret_1234567890',
-          },
-        ]),
+        MERCHANT_ENCRYPTION_KEYS: fixtureKeys,
       },
       /** Supply controlled upstream responses and record webhook deliveries.
        * @param request - Outbound request intercepted from the local Worker runtime.
@@ -83,10 +74,14 @@ beforeAll(async () => {
     }),
   );
   const db = await mf.getD1Database('DB');
-  for (const sql of readFileSync('migrations/0001_payments.sql', 'utf8')
-    .split(';')
-    .filter((sql) => sql.trim()))
-    await db.prepare(sql).run();
+  await migrate(db);
+  await seedMerchant(
+    db,
+    'fixture',
+    credential,
+    recipient,
+    'runtime_fixture_webhook_secret_1234567890',
+  );
 }, 30_000);
 afterAll(async () => {
   await mf?.dispose();
