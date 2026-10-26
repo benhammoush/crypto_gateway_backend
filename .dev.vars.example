@@ -3,6 +3,7 @@
 PAYMENTS_ENABLED=false
 JUPITER_API_KEY=
 CHECKOUT_SECRET=
-# JSON array: id, apiKeyHash (SHA-256 hex), recipient (32-byte base58 public key).
-# Optional webhookUrl and webhookSecret (>=32 characters); URLs must use approved HTTPS hosts.
-MERCHANTS_JSON=[]
+# Optional for polling-only merchants; required to deliver encrypted webhook secrets.
+# JSON: {"active":"key-id","keys":{"key-id":"<64 lowercase hex characters>"}}
+# Generate a distinct random 256-bit key per environment and retain a secure recovery copy.
+MERCHANT_ENCRYPTION_KEYS=

@@ -10,7 +10,7 @@ export interface Env {
   PAYMENTS_ENABLED?: string;
   CHECKOUT_ORIGIN?: string;
   CHECKOUT_SECRET?: string;
-  MERCHANTS_JSON?: string;
+  MERCHANT_ENCRYPTION_KEYS?: string;
   SOLANA_RPC_URL?: string;
   JUPITER_API_KEY?: string;
   WEBHOOK_HOSTS?: string;
@@ -19,10 +19,7 @@ export interface Env {
 /** Persisted merchant identity and settlement configuration. */
 export interface Merchant {
   id: string;
-  apiKeyHash: string;
   recipient: string;
-  webhookUrl?: string;
-  webhookSecret?: string;
 }
 
 /** Validated gateway configuration used by request and scheduled handlers. */
@@ -31,7 +28,8 @@ export interface Config {
   enabled: boolean;
   checkoutOrigin: string;
   checkoutSecret: string;
-  merchants: Merchant[];
+  webhookHosts: string[];
+  merchantKeys?: import('./merchant-crypto').MerchantKeyring;
   rpc: string;
   priceKey: string;
 }

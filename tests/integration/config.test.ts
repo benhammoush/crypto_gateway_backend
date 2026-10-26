@@ -11,11 +11,6 @@ import worker from '../../src/index';
 import { Env } from '../../src/types';
 
 const secret = 'synthetic_secret_must_never_appear_1234567890';
-const merchant = {
-  id: 'fixture',
-  apiKeyHash: 'a'.repeat(64),
-  recipient: 'So11111111111111111111111111111111111111112',
-};
 const env: Env = {
   DB: new Proxy({} as D1Database, {
     /** Simulate a binding getter failure without disclosing its secret text. */
@@ -29,7 +24,6 @@ const env: Env = {
   CHECKOUT_SECRET: secret,
   SOLANA_RPC_URL: `https://devnet.helius-rpc.com/?api-key=${secret}`,
   JUPITER_API_KEY: secret,
-  MERCHANTS_JSON: JSON.stringify([merchant]),
 };
 const validateError = new Ajv().compile(
   document.components.schemas.ErrorEnvelope,
@@ -51,27 +45,13 @@ const failures: [string, Partial<Env>][] = [
     'RPC_URL_HAS_CREDENTIALS',
     { SOLANA_RPC_URL: `https://${secret}:password@rpc.example.org/` },
   ],
-  ['MERCHANTS_JSON_INVALID', { MERCHANTS_JSON: secret }],
-  ['MERCHANTS_JSON_INVALID', { MERCHANTS_JSON: JSON.stringify({ secret }) }],
+  ['MERCHANT_ENCRYPTION_KEYS_INVALID', { MERCHANT_ENCRYPTION_KEYS: secret }],
   [
-    'MERCHANT_CONFIGURATION_INVALID',
-    { MERCHANTS_JSON: JSON.stringify([{ ...merchant, id: secret + '!' }]) },
-  ],
-  [
-    'WEBHOOK_CONFIGURATION_INVALID',
-    { MERCHANTS_JSON: JSON.stringify([{ ...merchant, webhookUrl: secret }]) },
-  ],
-  [
-    'WEBHOOK_CONFIGURATION_INVALID',
-    {
-      MERCHANTS_JSON: JSON.stringify([
-        { ...merchant, webhookUrl: secret, webhookSecret: secret },
-      ]),
-    },
+    'MERCHANT_ENCRYPTION_KEYS_INVALID',
+    { MERCHANT_ENCRYPTION_KEYS: JSON.stringify({ secret }) },
   ],
   ['PRICE_KEY_MISSING', { JUPITER_API_KEY: undefined }],
   ['CHECKOUT_SECRET_TOO_SHORT', { CHECKOUT_SECRET: 'short' }],
-  ['MERCHANTS_MISSING', { MERCHANTS_JSON: '[]' }],
 ];
 
 it.each(failures)(
@@ -161,7 +141,10 @@ it('does not expose unexpected exceptions as diagnostic messages', async () => {
     new Request('https://gateway.example.org/ready'),
     {
       ...env,
-      MERCHANTS_JSON: JSON.stringify([{ ...merchant, recipient: { secret } }]),
+      /** Simulate an unexpected secret-binding failure without returning its value. */
+      get MERCHANT_ENCRYPTION_KEYS(): never {
+        throw new Error(secret);
+      },
     },
   );
   const text = await response.text();

@@ -3,7 +3,7 @@
  * @packageDocumentation
  */
 
-import { PublicError } from './types';
+import { PublicError } from './types.ts';
 
 const encoder = new TextEncoder();
 

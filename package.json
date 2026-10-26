@@ -1,6 +1,6 @@
 {
   "name": "crypto_gateway_backend",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.19.0",
@@ -15,6 +15,7 @@
     "dev:scheduler": "node scripts/local-scheduler.mjs",
     "db:local": "wrangler d1 migrations apply DB --local",
     "credential:hash": "node scripts/hash-credential.mjs",
+    "merchant": "node --experimental-transform-types scripts/merchant.ts",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

@@ -16,6 +16,7 @@ import {
 import { base58Length, bearer, equal, jsonBody, sha256 } from './security';
 import { Config, Env, PublicError } from './types';
 import { deliverWebhooks } from './webhooks';
+import { authenticateMerchant } from './merchants';
 
 /** Consume the database-backed request budget for this identity.
  * @param db - Selected environment's database binding.
@@ -95,7 +96,7 @@ export default {
       if (path === '/health' && request.method === 'GET') {
         return response(
           {
-            data: { service: 'crypto_gateway_backend', version: '0.2.1' },
+            data: { service: 'crypto_gateway_backend', version: '0.3.0' },
             meta: { requestId },
           },
           requestId,
@@ -171,10 +172,7 @@ export default {
       const credential = bearer(request);
       let data: unknown;
       if (path.startsWith('/v1/payments')) {
-        const digest = await sha256(credential);
-        const merchant = settings.merchants.find((entry) =>
-          equal(entry.apiKeyHash, digest),
-        );
+        const merchant = await authenticateMerchant(env.DB, credential);
         if (!merchant)
           throw new PublicError(
             'UNAUTHORIZED',

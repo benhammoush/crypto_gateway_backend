@@ -1,42 +1,102 @@
-# Payment boundary
+# Crypto Gateway architecture
 
-The merchant decides what is owed in USD. The gateway owns the locked conversion, payment identity, recipient, verification, status and notification. The merchant owns its business objects and fulfillment. The gateway never receives private wallet keys.
+## Overview
 
-## Quote
+Crypto Gateway lets merchants request a USD amount and receive SOL directly in their wallet. It creates a fixed quote, verifies the transfer, and records payment status.
 
-Jupiter Price API V3 wrapped-SOL market reference; native SOL is transferred on Devnet. Parse the price as decimal rational `numerator / 10^scale` and calculate:
+| Component            | Role                                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| Merchant server      | Creates payments and queries their status using a private API key.                                |
+| Checkout             | Displays the quote, requests Phantom approval, and tracks verification.                           |
+| Backend Worker       | Authenticates requests, calculates quotes, verifies transactions, and delivers optional webhooks. |
+| D1 database          | Stores payments, transaction candidates, notification events, and rate limits.                    |
+| Jupiter / Solana RPC | Supply the SOL/USD price and blockchain evidence.                                                 |
 
-`ceil(usdCents * 1_000_000_000 * 10^scale / (100 * numerator))`
+## Payment workflow
 
-No floating-point multiplication, browser pricing or silent repricing. Quote lifetime is 15 minutes. Fail closed on invalid/missing prices and unsafe numeric ranges. The market reference does not give Devnet SOL monetary value.
+1. **Create:** The merchant submits an amount in USD cents and a business reference. An idempotency key prevents duplicate creation when requests are repeated.
+2. **Quote:** The backend calculates the required lamports, captures the merchant’s recipient address, and locks the quote for **15 minutes**.
+3. **Pay:** Checkout prepares the transfer and payment-identifying memo. The customer approves in Phantom, which submits directly to Solana.
+4. **Verify:** Checkout sends the transaction signature to the backend. The backend independently checks finalized execution, recipient, exact amount, memo, and transaction timing.
+5. **Settle:** The backend records settlement and creates a notification event atomically. Only then does checkout show **Payment verified**.
+6. **Track:** The merchant queries payment status or receives an optional signed webhook. Scheduled processing continues verification and delivery after checkout closes.
 
-## Transaction format
+**Wallet approval is not settlement. An uncertain submission must never trigger an automatic second transfer.**
 
-The final two top-level instructions must be the native System Program transfer from the first signing payer, then SPL Memo text `crypto_gateway:<payment UUID>`. Checkout builds these two instructions and supplies the payer as the memo signer. Wallets may prepend up to two Compute Budget Program instructions: at most one `SetComputeUnitLimit` (discriminator 2 + u32, exactly 5 bytes) and one `SetComputeUnitPrice` (discriminator 3 + u64, exactly 9 bytes), in either order, with no account references. Both values use the protocol's full unsigned integer range; the gateway does not calculate or authorize wallet fees. No duplicate types, other compute-budget variants, interleaving, suffixes or additional transfer/program instructions are accepted. Verification still requires successful finalized execution, exact signature, recipient, lamports and recipient balance delta. Unsafe JSON numeric balances are rejected, not rounded.
+## Merchant onboarding
 
-Transaction execution time must be between request creation (second precision) and expiry. Finalization may arrive later. Candidates remain retryable for up to 24 hours after expiry; after that the customer needs manual support. This is not a claim that funds were returned or the transfer failed.
+One gateway instance serves multiple merchants. Each merchant has an individual D1 record:
 
-## Persistence and concurrency
+| Group                 | Fields                                                       |
+| --------------------- | ------------------------------------------------------------ |
+| Identity              | Stable `id`, `name`, optional `legal_name`.                  |
+| Contact               | `email`, optional `phone` and `country_code`.                |
+| Payment configuration | `api_key_hash`, `recipient`, optional webhook configuration. |
+| Lifecycle             | `status`, `created_at`, `updated_at`.                        |
 
-- Unique `(merchant_id, idempotency_key)` plus canonical request digest.
-- Unique settled transaction signature across all payments.
-- Conditional settlement and deterministic outbox insertion in one atomic D1 batch.
-- Durable candidate signatures; rejected attempts do not invalidate a payable request.
-- At most five distinct candidates per payment to bound abuse.
-- Durable payment facts: unsettled or settled. Public pending/verifying/expired states are derived from expiry and candidate state; a pre-expiry transfer may transition expired → verifying → settled when submitted later within the review window.
-- Scheduler retries candidates independently of the browser. Ten candidates and ten webhook events per scheduled invocation, with request timeouts.
-- Webhook delivery is at-least-once with expiring leases, twelve attempts and capped exponential backoff. A crash after receiver acknowledgment may cause redelivery. Exhausted events require operator review/replay authorization.
+The operator-managed `npm run merchant` tool adds or updates one merchant without replacing other records. It generates a new API key when adding a merchant or rotating credentials. The merchant keeps the original key on their server; the gateway stores only its hash.
 
-Frontend notifications are separate from durable state: Awaiting wallet approval → Transaction submitted → Verifying on-chain → Payment verified. Only server settlement permits the final notification.
+Contact details remain operator-only, excluded from checkout responses, payment events, and logs. Collecting them requires appropriate access and retention rules.
 
-Wallet preparation uses a checkout-authenticated read-only RPC route, not the configured provider URL in the browser. Only Devnet genesis and finalized latest-blockhash calls are accepted for unexpired/unsettled payments. The gateway uses its operator-configured HTTPS upstream, limits checkout/global usage, rejects batches and extra parameters, bounds bodies and deadlines, and returns validated fields only. This does not proxy transaction submission or grant settlement authority. Phantom submits through its own network connection; authoritative verification remains independent.
+Merchant authentication reads D1 rather than `MERCHANTS_JSON`. Webhook signing secrets use authenticated AES-256-GCM encryption, bound to the merchant and environment. Encryption keys live in the separate `MERCHANT_ENCRYPTION_KEYS` runtime secret, not D1. The `merchant_audit` table records operator labels, revisions, changed-field names and timestamps, never previous values or secrets.
 
-## Threat model
+See [merchant onboarding](merchant-onboarding.md) for provisioning, disabling, key rotation and cutover requirements. This source implementation does not imply that hosted environments have been migrated or deployed. No existing-merchant importer is provided.
 
-Untrusted browser amount/recipient overrides are rejected. Credential classes are separate. Merchant queries are scoped; checkout tokens are HMAC-derived capabilities. Rotating CHECKOUT_SECRET invalidates all existing checkout capabilities, so coordinate rotation. API credential rotation does not alter existing quotes. Stored recipients do not change when merchant configuration changes.
+## Payment data
 
-Webhook destinations are trusted operator configuration, restricted to exact approved public HTTPS hostnames, no custom ports, credentials or redirects. Workers must retain `global_fetch_strictly_public`; DNS/public-network behavior needs hosted dev acceptance before activation. Do not run webhook delivery under an unrestricted alternate fetch implementation. Merchant webhook signing secrets are separate from API credentials. Changes to destination/secret affect pending deliveries and require coordinated rotation.
+The database stores exact values; applications format them for display.
 
-Worker outbound requests use `redirect: manual` and reject non-success responses; redirects are never followed. Workers does not support the Node/browser `redirect: error` value. Bundled runtime integration tests exercise pricing, verification, scheduled retries and signed webhook delivery, not just Node-level mocks.
+| Stored fields                             | Meaning                                                                  |
+| ----------------------------------------- | ------------------------------------------------------------------------ |
+| `id`, `merchant_id`, `merchant_reference` | Payment identity, owner, and merchant’s business reference.              |
+| `idempotency_key`, `request_hash`         | Detect duplicate creation requests and conflicting reuse.                |
+| `usd_cents`                               | Requested USD total: `1000` means **$10.00**.                            |
+| `usd_price`, `price_block_id`             | Locked **USD price per SOL** and the pricing provider’s block reference. |
+| `lamports`                                | Exact SOL amount due, stored as integer text.                            |
+| `recipient`                               | Merchant wallet captured when the payment was created.                   |
+| `created_at`, `expires_at`                | Creation and quote-expiry times.                                         |
+| `signature`, `payer`, `settled_at`        | Verified settlement evidence; empty until settlement.                    |
 
-The database contains payment references, amounts and public transaction data, not customer profiles. Do not put PII in references. Add operational retention/backup requirements before public activation; no automatic deletion policy is enabled.
+**1 SOL = 1,000,000,000 lamports.** For example, $10 at $100 per SOL requires 0.1 SOL, or 100,000,000 lamports.
+
+Conversion uses integer arithmetic and rounds upward to a whole lamport. Settlement requires an exact matching transfer, so `lamports` also describes the verified amount once paid. Network fees are separate.
+
+Supporting tables:
+
+- **`merchants`:** private merchant profiles, API-key hashes and encrypted webhook configuration.
+- **`merchant_audit`:** value-free records of merchant creation and updates.
+- **`attempts`:** submitted signatures, verification results, and retry timing.
+- **`events`:** settlement notifications and delivery tracking.
+- **`rate_limits`:** temporary request counters.
+
+Database and API payment timestamps use **Unix milliseconds**, which consumers can format as UTC dates. Solana block times and webhook signature timestamps use seconds.
+
+## Payment states and recovery
+
+Payment status is derived rather than stored in a separate column:
+
+| Status      | Meaning                                                          |
+| ----------- | ---------------------------------------------------------------- |
+| `pending`   | Quote remains payable, with no pending verification candidate.   |
+| `verifying` | A candidate awaits verification, potentially after quote expiry. |
+| `settled`   | A matching finalized transfer has been recorded.                 |
+| `expired`   | Quote expired without settlement or a pending candidate.         |
+
+Transactions must execute within the original payment window. Verification may finish later, with automatic review available for up to **24 hours after expiry**.
+
+Each payment accepts up to five distinct candidate signatures. Expiry, rejection, or a network error does not prove that no funds moved.
+
+Optional webhooks retry up to **12 times** and may arrive more than once. Merchants verify signatures and deduplicate events. Notification failure does not undo settlement.
+
+## Security and references
+
+Merchant credentials and keyed provider URLs stay server-side. Checkout receives payment-scoped access. Merchant queries are ownership-restricted, and webhooks require approved public HTTPS destinations.
+
+Detailed contracts and operational requirements:
+
+- [API contract](../openapi.json)
+- [Database schema](../migrations/0001_payments.sql)
+- [Merchant schema](../migrations/0002_merchants.sql)
+- [Transaction validation](../src/solana.ts)
+- [Security limitations](SECURITY.md)
+- [Delivery and recovery](delivery.md)

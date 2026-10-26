@@ -5,6 +5,8 @@
 
 import { hmac } from './security';
 import { Config } from './types';
+import { decryptWebhookSecret } from './merchant-crypto';
+import { validateWebhookUrl } from './merchants';
 
 /** Durable settlement-outbox record with delivery retry state. */
 interface EventRow {
@@ -12,6 +14,8 @@ interface EventRow {
   merchant_id: string;
   payload: string;
   attempts: number;
+  webhook_url: string;
+  webhook_secret_encrypted: string;
 }
 
 /** The exact raw body is signed. Consumers enforce timestamp tolerance and event deduplication.
@@ -36,25 +40,39 @@ export async function deliverWebhooks(
   db: D1Database,
   config: Config,
 ): Promise<void> {
-  const enabled = config.merchants
-    .filter((merchant) => merchant.webhookUrl && merchant.webhookSecret)
-    .map((merchant) => merchant.id);
-  if (!enabled.length) return;
+  if (!config.merchantKeys) return;
   const now = Date.now();
   const rows = await db
     .prepare(
-      `SELECT id, merchant_id, payload, attempts FROM events
-    WHERE delivered_at IS NULL AND next_attempt_at <= ? AND lease_until < ? AND attempts < 12
-      AND merchant_id IN (${enabled.map(() => '?').join(',')})
-    ORDER BY next_attempt_at LIMIT 10`,
+      `SELECT e.id, e.merchant_id, e.payload, e.attempts, m.webhook_url, m.webhook_secret_encrypted FROM events e
+    JOIN merchants m ON m.id = e.merchant_id
+    WHERE e.delivered_at IS NULL AND e.next_attempt_at <= ? AND e.lease_until < ? AND e.attempts < 12
+      AND m.status = 'active' AND m.webhook_url IS NOT NULL AND m.webhook_secret_encrypted IS NOT NULL
+    ORDER BY e.next_attempt_at LIMIT 10`,
     )
-    .bind(now, now, ...enabled)
+    .bind(now, now)
     .all<EventRow>();
   for (const event of rows.results) {
-    const merchant = config.merchants.find(
-      (entry) => entry.id === event.merchant_id,
-    );
-    if (!merchant?.webhookUrl || !merchant.webhookSecret) continue;
+    let secret: string;
+    try {
+      validateWebhookUrl(event.webhook_url, config.webhookHosts);
+      secret = await decryptWebhookSecret(
+        config.merchantKeys,
+        config.environment,
+        event.merchant_id,
+        event.webhook_secret_encrypted,
+      );
+    } catch {
+      // Defer blocked events so a full batch cannot starve other merchants; do not consume delivery attempts.
+      await db
+        .prepare(
+          `UPDATE events SET next_attempt_at = ?, last_error = 'WEBHOOK_CONFIGURATION_BLOCKED'
+        WHERE id = ? AND delivered_at IS NULL AND lease_until < ? AND next_attempt_at <= ?`,
+        )
+        .bind(Date.now() + 300_000, event.id, now, now)
+        .run();
+      continue;
+    }
     const lease = crypto.randomUUID();
     const claimed = await db
       .prepare(
@@ -66,7 +84,7 @@ export async function deliverWebhooks(
     if (!claimed.meta.changes) continue;
     let delivered = false;
     try {
-      const response = await fetch(merchant.webhookUrl, {
+      const response = await fetch(event.webhook_url, {
         method: 'POST',
         redirect: 'manual',
         signal: AbortSignal.timeout(8000),
@@ -74,7 +92,7 @@ export async function deliverWebhooks(
           'content-type': 'application/json',
           'crypto-gateway-event-id': event.id,
           'crypto-gateway-signature': await webhookSignature(
-            merchant.webhookSecret,
+            secret,
             Math.floor(Date.now() / 1000),
             event.payload,
           ),

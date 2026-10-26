@@ -3,8 +3,9 @@
  * @packageDocumentation
  */
 
-import { base58Length } from './security';
-import { Config, Env, Merchant } from './types';
+import { merchantKeyring } from './merchant-crypto';
+import { webhookHosts } from './merchants';
+import { Config, Env } from './types';
 
 /** Fixed configuration-failure labels safe for diagnostics. */
 type ConfigurationDiagnostic =
@@ -13,12 +14,9 @@ type ConfigurationDiagnostic =
   | 'RPC_URL_INVALID'
   | 'RPC_URL_NOT_HTTPS'
   | 'RPC_URL_HAS_CREDENTIALS'
-  | 'MERCHANTS_JSON_INVALID'
-  | 'MERCHANT_CONFIGURATION_INVALID'
-  | 'WEBHOOK_CONFIGURATION_INVALID'
+  | 'MERCHANT_ENCRYPTION_KEYS_INVALID'
   | 'PRICE_KEY_MISSING'
-  | 'CHECKOUT_SECRET_TOO_SHORT'
-  | 'MERCHANTS_MISSING';
+  | 'CHECKOUT_SECRET_TOO_SHORT';
 
 /** Fixed classifications only; never retain parser errors or configuration values. */
 export class ConfigurationError extends Error {
@@ -74,57 +72,12 @@ export function config(env: Env): Config {
     throw new ConfigurationError('RPC_URL_NOT_HTTPS');
   if (rpc.username || rpc.password)
     throw new ConfigurationError('RPC_URL_HAS_CREDENTIALS');
-  let merchants: unknown;
-  try {
-    merchants = JSON.parse(env.MERCHANTS_JSON ?? '[]');
-  } catch {
-    throw new ConfigurationError('MERCHANTS_JSON_INVALID');
-  }
-  if (!Array.isArray(merchants) || merchants.length > 100)
-    throw new ConfigurationError('MERCHANTS_JSON_INVALID');
-  const ids = new Set<string>();
-  const hashes = new Set<string>();
-  const hosts = (env.WEBHOOK_HOSTS ?? '')
-    .split(',')
-    .map((host) => host.trim())
-    .filter(Boolean);
-  for (const merchant of merchants as Merchant[]) {
-    if (
-      !merchant ||
-      !/^[a-zA-Z0-9_-]{1,64}$/.test(merchant.id) ||
-      !/^[a-f0-9]{64}$/.test(merchant.apiKeyHash) ||
-      base58Length(merchant.recipient) !== 32 ||
-      merchant.recipient === '11111111111111111111111111111111' ||
-      ids.has(merchant.id) ||
-      hashes.has(merchant.apiKeyHash)
-    ) {
-      throw new ConfigurationError('MERCHANT_CONFIGURATION_INVALID');
-    }
-    ids.add(merchant.id);
-    hashes.add(merchant.apiKeyHash);
-    if (Boolean(merchant.webhookUrl) !== Boolean(merchant.webhookSecret))
-      throw new ConfigurationError('WEBHOOK_CONFIGURATION_INVALID');
-    if (merchant.webhookUrl) {
-      const url = configurationUrl(
-        merchant.webhookUrl,
-        'WEBHOOK_CONFIGURATION_INVALID',
-      );
-      if (
-        url.protocol !== 'https:' ||
-        (url.port && url.port !== '443') ||
-        url.username ||
-        url.password ||
-        url.hash ||
-        !hosts.includes(url.hostname) ||
-        !/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(url.hostname) ||
-        /(?:^|\.)(?:localhost|local|internal|test|invalid)$/.test(
-          url.hostname,
-        ) ||
-        /^[\d.]+$/.test(url.hostname) ||
-        (merchant.webhookSecret?.length ?? 0) < 32
-      ) {
-        throw new ConfigurationError('WEBHOOK_CONFIGURATION_INVALID');
-      }
+  let merchantKeys: Config['merchantKeys'];
+  if (env.MERCHANT_ENCRYPTION_KEYS) {
+    try {
+      merchantKeys = merchantKeyring(env.MERCHANT_ENCRYPTION_KEYS);
+    } catch {
+      throw new ConfigurationError('MERCHANT_ENCRYPTION_KEYS_INVALID');
     }
   }
   const enabled = env.PAYMENTS_ENABLED === 'true';
@@ -132,14 +85,14 @@ export function config(env: Env): Config {
     if (!env.JUPITER_API_KEY) throw new ConfigurationError('PRICE_KEY_MISSING');
     if ((env.CHECKOUT_SECRET?.length ?? 0) < 32)
       throw new ConfigurationError('CHECKOUT_SECRET_TOO_SHORT');
-    if (!merchants.length) throw new ConfigurationError('MERCHANTS_MISSING');
   }
   return {
     environment: env.APP_ENV as Config['environment'],
     enabled,
     checkoutOrigin: checkout.origin,
     checkoutSecret: env.CHECKOUT_SECRET ?? '',
-    merchants: merchants as Merchant[],
+    webhookHosts: webhookHosts(env.WEBHOOK_HOSTS),
+    merchantKeys,
     rpc: rpc.href,
     priceKey: env.JUPITER_API_KEY ?? '',
   };

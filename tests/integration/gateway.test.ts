@@ -14,19 +14,24 @@ import {
   vi,
 } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
-import { readFileSync } from 'node:fs';
+import { migrate, seedMerchant, fixtureKeys } from '../fixtures';
+import {
+  encryptWebhookSecret,
+  merchantKeyring,
+} from '../../src/merchant-crypto';
+import { validateWebhookUrl } from '../../src/merchants';
 import worker from '../../src/index';
 import { config } from '../../src/config';
 import { getPayment, retryVerification, settle } from '../../src/payments';
 import { SOL_MINT } from '../../src/price';
-import { base58Length, sha256 } from '../../src/security';
+import { base58Length } from '../../src/security';
 import {
   DEVNET_GENESIS,
   MEMO_PROGRAM,
   ParsedTransaction,
   validateTransfer,
 } from '../../src/solana';
-import { Env, Merchant, Payment } from '../../src/types';
+import { Env, Payment } from '../../src/types';
 import document from '../../openapi.json';
 import { deliverWebhooks, webhookSignature } from '../../src/webhooks';
 import Ajv from 'ajv/dist/2020';
@@ -64,11 +69,7 @@ beforeAll(async () => {
     }),
   );
   const db = await mf.getD1Database('DB');
-  for (const sql of readFileSync('migrations/0001_payments.sql', 'utf8')
-    .split(';')
-    .filter((sql) => sql.trim())) {
-    await db.prepare(sql).run();
-  }
+  await migrate(db);
   env = {
     DB: db,
     APP_ENV: 'local',
@@ -77,18 +78,23 @@ beforeAll(async () => {
     CHECKOUT_SECRET: 'fixture_checkout_secret_12345678901234567890',
     SOLANA_RPC_URL: 'https://rpc.example.org',
     JUPITER_API_KEY: 'fixture-price-key',
-    MERCHANTS_JSON: JSON.stringify([
-      { id: 'merchant', apiKeyHash: await sha256(credential), recipient },
-    ]),
+    MERCHANT_ENCRYPTION_KEYS: fixtureKeys,
+    WEBHOOK_HOSTS: 'merchant.example.org',
   };
 }, 30_000);
 
 beforeEach(async () => {
   await env.DB.batch(
-    ['events', 'attempts', 'payments', 'rate_limits'].map((table) =>
-      env.DB.prepare(`DELETE FROM ${table}`),
-    ),
+    [
+      'events',
+      'attempts',
+      'payments',
+      'rate_limits',
+      'merchant_audit',
+      'merchants',
+    ].map((table) => env.DB.prepare(`DELETE FROM ${table}`)),
   );
+  await seedMerchant(env.DB, 'merchant', credential, recipient);
   transaction = null;
   fetchMock = vi.fn((url: string, options?: RequestInit) => {
     if (String(url).startsWith('https://api.jup.ag/'))
@@ -444,19 +450,12 @@ describe('merchant API', () => {
       401,
     );
     const other = 'fixture_other_merchant_credential_1234567890';
-    const merchants = JSON.parse(env.MERCHANTS_JSON!) as Merchant[];
-    const alternateEnv = {
-      ...env,
-      MERCHANTS_JSON: JSON.stringify([
-        ...merchants,
-        { id: 'other', apiKeyHash: await sha256(other), recipient },
-      ]),
-    };
+    await seedMerchant(env.DB, 'other', other, recipient);
     const result = await worker.fetch(
       new Request(`http://localhost/v1/payments/${current.id}`, {
         headers: { authorization: `Bearer ${other}` },
       }),
-      alternateEnv,
+      env,
     );
     expect(result.status).toBe(404);
   });
@@ -655,9 +654,21 @@ describe('webhooks', () => {
     const current = await create();
     await settle(env.DB, current.payment, signature, 'payer');
     const settings = config(env);
-    settings.merchants[0].webhookUrl = 'https://merchant.example.org/webhook';
-    settings.merchants[0].webhookSecret =
-      'fixture_webhook_secret_123456789012345';
+    const secret = 'fixture_webhook_secret_123456789012345';
+    await env.DB.prepare(
+      'UPDATE merchants SET webhook_url = ?, webhook_secret_encrypted = ?, revision = revision + 1 WHERE id = ?',
+    )
+      .bind(
+        'https://merchant.example.org/webhook',
+        await encryptWebhookSecret(
+          merchantKeyring(fixtureKeys),
+          'local',
+          'merchant',
+          secret,
+        ),
+        'merchant',
+      )
+      .run();
     fetchMock.mockImplementationOnce(
       async (_url: string, options?: RequestInit) => {
         const headers = options?.headers as Record<string, string>;
@@ -666,7 +677,7 @@ describe('webhooks', () => {
         );
         expect(headers['crypto-gateway-signature']).toBe(
           await webhookSignature(
-            settings.merchants[0].webhookSecret!,
+            secret,
             timestamp,
             typeof options?.body === 'string' ? options.body : '',
           ),
@@ -701,22 +712,13 @@ describe('webhooks', () => {
     expect(fetchMock.mock.calls.length).toBe(count);
   });
   it('rejects unapproved and unsafe webhook configuration', () => {
-    const merchants = JSON.parse(env.MERCHANTS_JSON!) as Merchant[];
     for (const url of [
       'http://merchant.example.org/hook',
       'https://127.0.0.1/hook',
       'https://localhost/hook',
       'https://merchant.example.org:8080/hook',
     ]) {
-      expect(() =>
-        config({
-          ...env,
-          WEBHOOK_HOSTS: new URL(url).hostname,
-          MERCHANTS_JSON: JSON.stringify([
-            { ...merchants[0], webhookUrl: url, webhookSecret: 'x'.repeat(32) },
-          ]),
-        }),
-      ).toThrow();
+      expect(() => validateWebhookUrl(url, [new URL(url).hostname])).toThrow();
     }
   });
 });

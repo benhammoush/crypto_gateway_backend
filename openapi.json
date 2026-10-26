@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "crypto_gateway",
-    "version": "0.2.1",
+    "version": "0.3.0",
     "description": "Non-custodial USD-to-SOL Devnet payments. Merchant endpoints require server-side credentials; checkout endpoints require payment-scoped capabilities."
   },
   "paths": {
@@ -374,12 +374,9 @@
                   "RPC_URL_INVALID",
                   "RPC_URL_NOT_HTTPS",
                   "RPC_URL_HAS_CREDENTIALS",
-                  "MERCHANTS_JSON_INVALID",
-                  "MERCHANT_CONFIGURATION_INVALID",
-                  "WEBHOOK_CONFIGURATION_INVALID",
+                  "MERCHANT_ENCRYPTION_KEYS_INVALID",
                   "PRICE_KEY_MISSING",
-                  "CHECKOUT_SECRET_TOO_SHORT",
-                  "MERCHANTS_MISSING"
+                  "CHECKOUT_SECRET_TOO_SHORT"
                 ]
               }
             }

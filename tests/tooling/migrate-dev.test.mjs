@@ -24,6 +24,40 @@ import {
 } from '../../scripts/migrate-dev.mjs';
 import { migrationDigest } from '../../scripts/check-delivery.mjs';
 
+// Historical first-schema behavior is exercised against its original catalog, not today's migrations.
+const catalog = vi.hoisted(() => ({ historical: true }));
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    /** Select the historical fixture catalog without changing the production guard.
+     * @param directory - Directory being inspected.
+     * @returns Original first migration for historical tests; real files otherwise.
+     */
+    readdirSync(directory) {
+      const files = actual.readdirSync(directory);
+      return catalog.historical && directory === 'migrations'
+        ? files.filter((name) => name === '0001_payments.sql')
+        : files;
+    },
+  };
+});
+
+it('rejects the current multi-migration catalog before inspection or mutation', async () => {
+  catalog.historical = false;
+  const inspect = vi.fn();
+  const execute = vi.fn();
+  try {
+    await expect(
+      migrateDev(environment(), { inspect, execute }),
+    ).rejects.toThrow('ONLY_REVIEWED_FIRST_MIGRATION_ALLOWED');
+    expect(inspect).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+  } finally {
+    catalog.historical = true;
+  }
+});
+
 /** Synthetic scope only; the injected executor never invokes Wrangler or providers.
  * @returns Explicit dev migration scope with synthetic identities only.
  */

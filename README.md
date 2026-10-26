@@ -60,3 +60,7 @@ request/response formats.
 
 See [the payment architecture](docs/architecture.md) for quote arithmetic,
 transaction verification and concurrency boundaries.
+
+Operators add and manage individual D1 merchant records using the
+[merchant onboarding procedure](docs/merchant-onboarding.md). There is no public
+signup or administration endpoint.
