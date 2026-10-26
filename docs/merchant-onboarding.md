@@ -163,10 +163,21 @@ old secret. No importer or hosted migration is included in this task.
 Before switching hosted code: approve and apply the migration, provision the intended
 merchant IDs in D1, configure the separate encryption keyring where webhooks are
 needed, verify schema/readback and recovery evidence, then approve the compatible
-backend deployment. Existing payments retain their original merchant ID; assigning
-that ID to a different business would expose its historical merchant-scoped reads.
-Never recycle merchant IDs. Without a D1 record, an old merchant key no longer
-authenticates. Preserve old configuration until the separately approved cutover is
+backend deployment. `add` generates a new API key; retaining a merchant ID does not
+preserve its previous credential. Securely hand each existing merchant its new key
+and coordinate installation in its server-side integration during an approved
+maintenance window. Expect authenticated requests to fail between the backend/key
+switches; this procedure does not provide zero-downtime credential continuity.
+Before approving cutover completion and resuming normal traffic, require every
+continuing merchant to activate its new credential and pass an authenticated
+`GET /v1/payments/{id}` for a known payment belonging to that merchant. Do not create
+a payment merely to test authentication. If a merchant lacks a known payment,
+agree a separate bounded verification procedure before accepting its cutover.
+
+Existing payments retain their original merchant ID; assigning that ID to a
+different business would expose its historical merchant-scoped reads. Never recycle
+merchant IDs. Without a D1 record matching its credential hash, a merchant cannot
+authenticate. Preserve old configuration until the separately approved cutover is
 accepted; do not infer permission to delete it from this implementation.
 
 The retired first-schema tool intentionally refuses a multi-migration source tree.
