@@ -12,6 +12,7 @@ import {
   validateTransfer,
 } from './solana';
 import { Config, Merchant, Payment, PublicError } from './types';
+import { logFailure } from './logging';
 
 const EXPIRY_MS = 15 * 60_000;
 const REVIEW_WINDOW_MS = 24 * 60 * 60_000;
@@ -343,10 +344,12 @@ async function verifyCandidate(
 /** Retry due durable candidates; transient failures leave them eligible for later verification.
  * @param db - Database containing pending candidates and retry eligibility.
  * @param config - Validated operator RPC and settlement configuration.
+ * @param runId - Opaque scheduled invocation reference, never a payment identifier.
  */
 export async function retryVerification(
   db: D1Database,
   config: Config,
+  runId: string = crypto.randomUUID(),
 ): Promise<void> {
   const due = await db
     .prepare(
@@ -363,8 +366,9 @@ export async function retryVerification(
         await getPayment(db, candidate.payment_id),
         candidate.signature,
       );
-    } catch {
-      /* Retry remains durable; no provider payloads or credentials are logged. */
+    } catch (error) {
+      if (!(error instanceof PublicError))
+        logFailure('scheduled', runId, 'verification');
     }
   }
 }

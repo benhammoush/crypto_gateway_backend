@@ -7,6 +7,7 @@ import { hmac } from './security';
 import { Config } from './types';
 import { decryptWebhookSecret } from './merchant-crypto';
 import { validateWebhookUrl } from './merchants';
+import { logFailure } from './logging';
 
 /** Durable settlement-outbox record with delivery retry state. */
 interface EventRow {
@@ -35,10 +36,12 @@ export async function webhookSignature(
 /** Bounded, leased, at-least-once delivery. Runtime must enforce public-only fetch.
  * @param db - Database containing durable outbox events and delivery leases.
  * @param config - Validated merchant destinations and signing secrets.
+ * @param runId - Opaque scheduled invocation reference, never an event identifier.
  */
 export async function deliverWebhooks(
   db: D1Database,
   config: Config,
+  runId: string = crypto.randomUUID(),
 ): Promise<void> {
   if (!config.merchantKeys) return;
   const now = Date.now();
@@ -63,6 +66,12 @@ export async function deliverWebhooks(
         event.webhook_secret_encrypted,
       );
     } catch {
+      logFailure(
+        'scheduled',
+        runId,
+        'webhook_delivery',
+        'WEBHOOK_CONFIGURATION_BLOCKED',
+      );
       // Defer blocked events so a full batch cannot starve other merchants; do not consume delivery attempts.
       await db
         .prepare(
@@ -83,7 +92,14 @@ export async function deliverWebhooks(
       .run();
     if (!claimed.meta.changes) continue;
     let delivered = false;
+    let sending = false;
     try {
+      const signature = await webhookSignature(
+        secret,
+        Math.floor(Date.now() / 1000),
+        event.payload,
+      );
+      sending = true;
       const response = await fetch(event.webhook_url, {
         method: 'POST',
         redirect: 'manual',
@@ -91,18 +107,15 @@ export async function deliverWebhooks(
         headers: {
           'content-type': 'application/json',
           'crypto-gateway-event-id': event.id,
-          'crypto-gateway-signature': await webhookSignature(
-            secret,
-            Math.floor(Date.now() / 1000),
-            event.payload,
-          ),
+          'crypto-gateway-signature': signature,
         },
         body: event.payload,
       });
       delivered = response.ok;
       await response.body?.cancel();
     } catch {
-      /* Failures remain pending; never log endpoint secrets or response bodies. */
+      if (!sending) logFailure('scheduled', runId, 'webhook_delivery');
+      /* Transport failures remain pending without logging endpoint secrets or response bodies. */
     }
     const delay = Math.min(3_600_000, 30_000 * 2 ** event.attempts);
     await db
