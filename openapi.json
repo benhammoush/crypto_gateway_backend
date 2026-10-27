@@ -2,10 +2,21 @@
   "openapi": "3.1.0",
   "info": {
     "title": "crypto_gateway",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "description": "Non-custodial USD-to-SOL Devnet payments. Merchant endpoints require server-side credentials; checkout endpoints require payment-scoped capabilities."
   },
   "paths": {
+    "/v1/support/log-check": {
+      "post": {
+        "operationId": "checkSupportLogs",
+        "description": "Dev-only operator acceptance check, available even when payments are disabled. Requires a server-side merchant credential, consumes rate-limit counters and emits one fixed synthetic failure with the returned request ID. Returns 500 SUPPORT_LOG_CHECK deliberately; never creates, submits or settles a payment or calls providers. Limited to one authenticated check per merchant per minute. Not available in local or production environments. No request body is read or logged.",
+        "security": [{ "merchantBearer": [] }],
+        "responses": {
+          "500": { "$ref": "#/components/responses/Error" },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/v1/payments": {
       "post": {
         "operationId": "createPayment",

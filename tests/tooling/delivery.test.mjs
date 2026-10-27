@@ -142,6 +142,56 @@ describe('manual production delivery guard', () => {
     env.GITHUB_RUN_ATTEMPT = '2';
     expect(() => deliveryConfig(env, migrationDigest())).toThrow();
   });
+  it('accepts only the exact dev custom-log privacy settings', () => {
+    const { env, config } = fixture();
+    const observability = {
+      enabled: true,
+      redact_query_string: true,
+      issues: { enabled: false },
+      logs: {
+        enabled: true,
+        head_sampling_rate: 1,
+        invocation_logs: false,
+        persist: true,
+        destinations: [],
+      },
+      traces: { enabled: false, persist: false, destinations: [] },
+    };
+    const selected = { ...config, observability };
+    env.WORKER_CONFIG_JSON = JSON.stringify(selected);
+    expect(deliveryConfig(env, migrationDigest())).toEqual(selected);
+    for (const change of [
+      {},
+      { ...observability, redact_query_string: false },
+      { ...observability, issues: { enabled: true } },
+      {
+        ...observability,
+        logs: { ...observability.logs, invocation_logs: true },
+      },
+      {
+        ...observability,
+        logs: { ...observability.logs, head_sampling_rate: 0.1 },
+      },
+      {
+        ...observability,
+        logs: { ...observability.logs, destinations: ['sink'] },
+      },
+      { ...observability, traces: { enabled: true } },
+    ]) {
+      env.WORKER_CONFIG_JSON = JSON.stringify({
+        ...config,
+        observability: change,
+      });
+      expect(() => deliveryConfig(env, migrationDigest())).toThrow();
+    }
+    selected.name = 'crypto-gateway-production';
+    selected.vars.APP_ENV = 'production';
+    selected.d1_databases[0].database_name = 'crypto-gateway-production';
+    env.DELIVERY_TARGET = 'production';
+    env.GITHUB_EVENT_NAME = 'workflow_dispatch';
+    env.WORKER_CONFIG_JSON = JSON.stringify(selected);
+    expect(() => deliveryConfig(env, migrationDigest())).toThrow();
+  });
   it('gates deployment behind existing checks and never applies hosted migrations', () => {
     const workflow = readFileSync(
       '.github/workflows/verify-and-deploy-dev.yml',

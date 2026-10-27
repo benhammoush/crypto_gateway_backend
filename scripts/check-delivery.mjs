@@ -70,7 +70,9 @@ export function hostedConfig(env, digest) {
   assert.equal(origin.protocol, 'https:');
   const config = JSON.parse(env.WORKER_CONFIG_JSON);
   assert.deepEqual(
-    Object.keys(config).sort(),
+    Object.keys(config)
+      .filter((key) => key !== 'observability')
+      .sort(),
     [
       'compatibility_date',
       'compatibility_flags',
@@ -82,6 +84,22 @@ export function hostedConfig(env, digest) {
       'workers_dev',
     ].sort(),
   );
+  if ('observability' in config) {
+    assert.equal(target, 'dev', 'Hosted logging is approved for dev only.');
+    assert.deepEqual(config.observability, {
+      enabled: true,
+      redact_query_string: true,
+      issues: { enabled: false },
+      logs: {
+        enabled: true,
+        head_sampling_rate: 1,
+        invocation_logs: false,
+        persist: true,
+        destinations: [],
+      },
+      traces: { enabled: false, persist: false, destinations: [] },
+    });
+  }
   assert.equal(config.name, `crypto-gateway-${target}`);
   assert.equal(config.main, 'src/index.ts');
   assert.equal(config.compatibility_date, '2026-10-04');

@@ -98,7 +98,7 @@ export default {
       if (path === '/health' && request.method === 'GET') {
         return response(
           {
-            data: { service: 'crypto_gateway_backend', version: '0.3.0' },
+            data: { service: 'crypto_gateway_backend', version: '0.3.1' },
             meta: { requestId },
           },
           requestId,
@@ -161,7 +161,9 @@ export default {
           settings.enabled ? 200 : 503,
         );
       }
-      if (!settings.enabled)
+      const supportLogCheck =
+        path === '/v1/support/log-check' && settings.environment === 'dev';
+      if (!settings.enabled && !supportLogCheck)
         throw new PublicError(
           'PAYMENTS_DISABLED',
           'Payment processing is disabled.',
@@ -175,6 +177,26 @@ export default {
       );
       const credential = bearer(request);
       let data: unknown;
+      if (supportLogCheck) {
+        if (request.method !== 'POST')
+          throw new PublicError('NOT_FOUND', 'Endpoint was not found.', 404);
+        operation = 'merchant_authentication';
+        const merchant = await authenticateMerchant(env.DB, credential);
+        if (!merchant)
+          throw new PublicError(
+            'UNAUTHORIZED',
+            'Invalid merchant credential.',
+            401,
+          );
+        operation = 'rate_limit';
+        await rateLimit(env.DB, `support:${merchant.id}`, 1);
+        logFailure('api', requestId, 'support_log_check', 'SUPPORT_LOG_CHECK');
+        throw new PublicError(
+          'SUPPORT_LOG_CHECK',
+          'Synthetic support log check; no payment was attempted.',
+          500,
+        );
+      }
       if (path.startsWith('/v1/payments')) {
         operation = 'merchant_authentication';
         const merchant = await authenticateMerchant(env.DB, credential);
