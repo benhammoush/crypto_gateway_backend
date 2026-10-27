@@ -161,7 +161,9 @@ export default {
           settings.enabled ? 200 : 503,
         );
       }
-      if (!settings.enabled)
+      const supportLogCheck =
+        path === '/v1/support/log-check' && settings.environment === 'dev';
+      if (!settings.enabled && !supportLogCheck)
         throw new PublicError(
           'PAYMENTS_DISABLED',
           'Payment processing is disabled.',
@@ -175,7 +177,7 @@ export default {
       );
       const credential = bearer(request);
       let data: unknown;
-      if (path === '/v1/support/log-check' && settings.environment === 'dev') {
+      if (supportLogCheck) {
         if (request.method !== 'POST')
           throw new PublicError('NOT_FOUND', 'Endpoint was not found.', 404);
         operation = 'merchant_authentication';

@@ -80,7 +80,8 @@ These are provider defaults, not a configurable retention promise. See
    authenticates the merchant and consumes rate-limit counters, but never creates or
    submits a payment, changes settlement, calls providers or reads the request body.
    The check is limited to once per merchant per minute, in addition to the IP budget.
-   It is unavailable in local and production. Do not expose the credential in a browser.
+   It works with dev payments disabled and is unavailable in local and production.
+   Do not expose the credential in a browser.
 3. In restricted stored logs, find that Request ID and verify `event: api.failure`,
    `operation: support_log_check`, `code: SUPPORT_LOG_CHECK`. Inspect complete metadata
    with synthetic canary inputs for URL/query/header/body leakage; do not export raw

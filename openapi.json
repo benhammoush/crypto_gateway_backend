@@ -9,7 +9,7 @@
     "/v1/support/log-check": {
       "post": {
         "operationId": "checkSupportLogs",
-        "description": "Dev-only operator acceptance check. Requires a server-side merchant credential, consumes rate-limit counters and emits one fixed synthetic failure with the returned request ID. Returns 500 SUPPORT_LOG_CHECK deliberately; never creates, submits or settles a payment or calls providers. Limited to one authenticated check per merchant per minute. Not available in local or production environments. No request body is read or logged.",
+        "description": "Dev-only operator acceptance check, available even when payments are disabled. Requires a server-side merchant credential, consumes rate-limit counters and emits one fixed synthetic failure with the returned request ID. Returns 500 SUPPORT_LOG_CHECK deliberately; never creates, submits or settles a payment or calls providers. Limited to one authenticated check per merchant per minute. Not available in local or production environments. No request body is read or logged.",
         "security": [{ "merchantBearer": [] }],
         "responses": {
           "500": { "$ref": "#/components/responses/Error" },
