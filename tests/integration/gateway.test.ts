@@ -157,6 +157,67 @@ async function call(
   return { status: response.status, body: parsed };
 }
 
+it('checks dev log lookup with authentication, rate limits and no payment or provider work', async () => {
+  const logs = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const dev = {
+    ...env,
+    APP_ENV: 'dev',
+    CHECKOUT_ORIGIN: 'https://checkout.example.com',
+  };
+  const url =
+    'https://api.example.com/v1/support/log-check?private=never-log-this';
+  /** Build a synthetic log check without real credentials.
+   * @param token - Fixture authorization input.
+   * @param method - Method under test.
+   * @returns Synthetic request carrying a URL canary.
+   */
+  const request = (token: string, method = 'POST') =>
+    new Request(url, { method, headers: { authorization: `Bearer ${token}` } });
+  for (const APP_ENV of ['local', 'production']) {
+    const unavailable = await worker.fetch(request(credential), {
+      ...dev,
+      APP_ENV,
+      CHECKOUT_ORIGIN:
+        APP_ENV === 'local' ? env.CHECKOUT_ORIGIN : dev.CHECKOUT_ORIGIN,
+    });
+    expect(unavailable.status).toBe(404);
+  }
+  expect((await worker.fetch(request('invalid'), dev)).status).toBe(401);
+  expect((await worker.fetch(request(credential, 'GET'), dev)).status).toBe(
+    404,
+  );
+  expect(logs).not.toHaveBeenCalled();
+  const result = await worker.fetch(request(credential), dev);
+  expect(result.status).toBe(500);
+  const body = await result.json<{
+    error: { code: string; requestId: string };
+  }>();
+  expect(body.error.code).toBe('SUPPORT_LOG_CHECK');
+  expect(logs).toHaveBeenCalledExactlyOnceWith({
+    event: 'api.failure',
+    requestId: result.headers.get('x-request-id'),
+    operation: 'support_log_check',
+    code: 'SUPPORT_LOG_CHECK',
+  });
+  expect(body.error.requestId).toBe(result.headers.get('x-request-id'));
+  expect((await worker.fetch(request(credential), dev)).status).toBe(429);
+  expect(logs).toHaveBeenCalledTimes(1);
+  expect(
+    await env.DB.prepare('SELECT COUNT(*) AS count FROM payments').first(
+      'count',
+    ),
+  ).toBe(0);
+  expect(
+    await env.DB.prepare('SELECT COUNT(*) AS count FROM attempts').first(
+      'count',
+    ),
+  ).toBe(0);
+  expect(
+    await env.DB.prepare('SELECT COUNT(*) AS count FROM events').first('count'),
+  ).toBe(0);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
 /** Create a fixture payment through the HTTP boundary under test.
  * @param key - Synthetic merchant-scoped idempotency key.
  * @param cents - Integer USD cents to quote.

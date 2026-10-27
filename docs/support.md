@@ -34,16 +34,60 @@ Logs cannot establish settlement or absence of a transfer. Use authenticated pay
 status and finalized-chain reconciliation under the applicable authorization. Never
 recommend another payment merely because a request failed or a log is missing.
 
-## Hosted prerequisites (separate approval)
+## Hosted collection
 
-Source logging is not hosted acceptance. Review and enable the intended provider's
-custom-log collection, restricted operator access, sampling and retention separately.
-Cloudflare Workers Logs requires observability configuration; the managed delivery
-configuration currently does not include it. Do not silently change live settings or
-relax deployment guards. Disable automatic invocation logs before collection because
-they can include request URLs; review platform exception/trace capture for sensitive
-metadata too. This change adds no external log sink, dashboard, alerts or tracing.
+Collection is an explicit, separately approved dev setting in the environment's
+managed `WORKER_CONFIG_JSON`, not a local Wrangler setting or dashboard override.
+The delivery guard accepts only this exact optional `observability` object in dev;
+production rejects it. Omit it to retain the existing configuration.
 
-Before relying on support lookup, accept collection and search of a synthetic safe
-failure on the exact deployed candidate, including privacy, retention and access.
-Sampling, expiry or unavailable collection means missing logs are inconclusive.
+```json
+{
+  "enabled": true,
+  "redact_query_string": true,
+  "issues": { "enabled": false },
+  "logs": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "invocation_logs": false,
+    "persist": true,
+    "destinations": []
+  },
+  "traces": { "enabled": false, "persist": false, "destinations": [] }
+}
+```
+
+Automatic invocation logs, Issues, traces and external sinks remain off. Query-string
+redaction adds protection against URL tokens; it does not sanitize arbitrary console
+messages or uncaught platform exceptions. Inspect the complete stored event's metadata
+before accepting collection; application-field allowlisting alone is insufficient.
+Do not enable collection if provider enrichment exposes credentials or checkout tokens.
+
+Use restricted Cloudflare operator access, not a public log endpoint or merchant
+dashboard. Before activation, verify the actual account roles and token scopes allow
+only intended operators to read logs. Never broaden deployment credentials merely to
+query logs. Confirm the account plan and retention: Cloudflare documents three days
+on Free and seven days on Paid, with plan-specific limits and possible usage charges.
+These are provider defaults, not a configurable retention promise. See
+[Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/).
+
+## Hosted acceptance
+
+1. Verify the exact deployed source/version and readiness; keep production and payment
+   data unchanged. Serialize configuration and delivery through the existing dev pipeline.
+2. With a server-side merchant credential, send one `POST /v1/support/log-check` in dev.
+   This deliberately returns HTTP 500 with `SUPPORT_LOG_CHECK` and a Request ID. It
+   authenticates the merchant and consumes rate-limit counters, but never creates or
+   submits a payment, changes settlement, calls providers or reads the request body.
+   The check is limited to once per merchant per minute, in addition to the IP budget.
+   It is unavailable in local and production. Do not expose the credential in a browser.
+3. In restricted stored logs, find that Request ID and verify `event: api.failure`,
+   `operation: support_log_check`, `code: SUPPORT_LOG_CHECK`. Inspect complete metadata
+   with synthetic canary inputs for URL/query/header/body leakage; do not export raw
+   logs. This verifies collection and lookup, not a real payment or unexpected failure.
+4. Retain sanitized source/provider identity, timestamp, reference, lookup, privacy,
+   access and retention evidence in the release record. Missing access, ambiguous
+   metadata or unavailable search leaves acceptance incomplete; do not claim success.
+
+Source logging and green delivery alone are not hosted acceptance. Sampling, expiry,
+quota exhaustion or unavailable collection means missing logs are inconclusive.
