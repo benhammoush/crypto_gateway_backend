@@ -467,6 +467,8 @@ it('does not deliver or consume attempts with a disabled merchant or missing enc
 });
 
 it('defers a full blocked batch so valid events for another merchant can progress', async () => {
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const runId = crypto.randomUUID();
   for (const id of ['blocked', 'valid']) {
     await provisionMerchant(
       query,
@@ -522,8 +524,21 @@ it('defers a full blocked batch so valid events for another merchant can progres
   );
   vi.stubGlobal('fetch', fetch);
   try {
-    await deliverWebhooks(db, settings);
+    await deliverWebhooks(db, settings, runId);
     expect(fetch).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledTimes(10);
+    expect(
+      log.mock.calls.every(
+        ([entry]) =>
+          JSON.stringify(entry) ===
+          JSON.stringify({
+            event: 'scheduled.failure',
+            runId,
+            operation: 'webhook_delivery',
+            code: 'WEBHOOK_CONFIGURATION_BLOCKED',
+          }),
+      ),
+    ).toBe(true);
     const blocked = await db
       .prepare(
         "SELECT attempts, next_attempt_at, last_error FROM events WHERE merchant_id = 'blocked'",
@@ -537,12 +552,14 @@ it('defers a full blocked batch so valid events for another merchant can progres
     }
     await deliverWebhooks(db, settings);
     expect(fetch).toHaveBeenCalledOnce();
+    expect(log).toHaveBeenCalledTimes(10);
     expect(
       (await db
         .prepare("SELECT delivered_at FROM events WHERE merchant_id = 'valid'")
         .first<{ delivered_at: number | null }>())!.delivered_at,
     ).toBeTypeOf('number');
   } finally {
+    log.mockRestore();
     vi.unstubAllGlobals();
   }
 });

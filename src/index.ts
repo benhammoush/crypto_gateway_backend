@@ -17,6 +17,7 @@ import { base58Length, bearer, equal, jsonBody, sha256 } from './security';
 import { Config, Env, PublicError } from './types';
 import { deliverWebhooks } from './webhooks';
 import { authenticateMerchant } from './merchants';
+import { logFailure, Operation } from './logging';
 
 /** Consume the database-backed request budget for this identity.
  * @param db - Selected environment's database binding.
@@ -91,6 +92,7 @@ export default {
     const requestId = crypto.randomUUID();
     const origin = request.headers.get('origin');
     let settings: Config | undefined;
+    let operation: Operation = 'configuration';
     try {
       const path = new URL(request.url).pathname;
       if (path === '/health' && request.method === 'GET') {
@@ -107,6 +109,7 @@ export default {
       try {
         settings = config(env);
       } catch (error) {
+        logFailure('api', requestId, operation, 'CONFIGURATION_FAILED');
         if (
           env.APP_ENV === 'dev' &&
           path === '/ready' &&
@@ -164,6 +167,7 @@ export default {
           'Payment processing is disabled.',
           503,
         );
+      operation = 'rate_limit';
       await rateLimit(
         env.DB,
         `ip:${request.headers.get('cf-connecting-ip') ?? 'local'}`,
@@ -172,6 +176,7 @@ export default {
       const credential = bearer(request);
       let data: unknown;
       if (path.startsWith('/v1/payments')) {
+        operation = 'merchant_authentication';
         const merchant = await authenticateMerchant(env.DB, credential);
         if (!merchant)
           throw new PublicError(
@@ -179,8 +184,10 @@ export default {
             'Invalid merchant credential.',
             401,
           );
+        operation = 'rate_limit';
         await rateLimit(env.DB, `merchant:${merchant.id}`, 120);
         if (path === '/v1/payments' && request.method === 'POST') {
+          operation = 'payment_create';
           data = await createPayment(
             env.DB,
             settings,
@@ -192,6 +199,7 @@ export default {
           const match = /^\/v1\/payments\/([a-f0-9-]{36})$/.exec(path);
           if (!match || request.method !== 'GET')
             throw new PublicError('NOT_FOUND', 'Endpoint was not found.', 404);
+          operation = 'payment_read';
           const payment = await getPayment(env.DB, match[1]);
           if (payment.merchant_id !== merchant.id)
             throw new PublicError('NOT_FOUND', 'Payment was not found.', 404);
@@ -205,6 +213,7 @@ export default {
           (match[2] ? request.method !== 'POST' : request.method !== 'GET')
         )
           throw new PublicError('NOT_FOUND', 'Endpoint was not found.', 404);
+        operation = 'checkout_read';
         const payment = await getPayment(env.DB, match[1]);
         if (!equal(credential, await checkoutToken(settings, payment)))
           throw new PublicError(
@@ -212,10 +221,12 @@ export default {
             'Invalid checkout session.',
             401,
           );
+        operation = 'rate_limit';
         await rateLimit(env.DB, `checkout:${payment.id}`, 60);
         if (match[2] === '/rpc') {
           await rateLimit(env.DB, `rpc:${payment.id}`, 12);
           await rateLimit(env.DB, 'rpc:global', 60);
+          operation = 'checkout_rpc';
           return response(
             await checkoutRpc(settings.rpc, payment, await jsonBody(request)),
             requestId,
@@ -224,6 +235,7 @@ export default {
           );
         }
         if (match[2]) {
+          operation = 'transaction_submit';
           const body = await jsonBody(request);
           if (
             Object.keys(body).length !== 1 ||
@@ -237,6 +249,7 @@ export default {
           }
           await submit(env.DB, settings, payment, body.signature);
         }
+        operation = 'checkout_read';
         data = await paymentView(
           env.DB,
           settings,
@@ -250,6 +263,8 @@ export default {
         settings.checkoutOrigin,
       );
     } catch (error) {
+      if (!(error instanceof PublicError))
+        logFailure('api', requestId, operation);
       const safe =
         error instanceof PublicError
           ? error
@@ -272,12 +287,23 @@ export default {
    * @param env - Selected environment's database and gateway configuration.
    */
   async scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
-    const settings = config(env);
-    if (!settings.enabled) return;
-    await retryVerification(env.DB, settings);
-    await deliverWebhooks(env.DB, settings);
-    await env.DB.prepare('DELETE FROM rate_limits WHERE expires_at < ?')
-      .bind(Date.now())
-      .run();
+    const runId = crypto.randomUUID();
+    let operation: Operation = 'configuration';
+    try {
+      const settings = config(env);
+      if (!settings.enabled) return;
+      operation = 'verification';
+      await retryVerification(env.DB, settings, runId);
+      operation = 'webhook_delivery';
+      await deliverWebhooks(env.DB, settings, runId);
+      operation = 'rate_limit_cleanup';
+      await env.DB.prepare('DELETE FROM rate_limits WHERE expires_at < ?')
+        .bind(Date.now())
+        .run();
+    } catch {
+      logFailure('scheduled', runId, operation);
+      // Preserve a failed invocation without exposing the original exception to platform logs.
+      throw new Error('Scheduled gateway processing failed.');
+    }
   },
 };

@@ -71,7 +71,7 @@ Each hosted target needs independent Worker, D1, merchant credentials, checkout 
 2. Configure dev/production native environments restricted to main. Production requires enforceable explicit approval with admin bypass disabled. If unsupported, keep production disabled pending an approved alternative.
 3. Verify provider isolation, scoped credentials and origin ownership. Disable Vercel Git auto-deploy; CI must own deployment. No hosted PR previews or cross-repository dispatch tokens.
 4. Complete dev configuration before merging: delivery ignores `DEPLOY_ENABLED`, including absent/false values. Hold production by not dispatching it until readiness and separate execution authorization. The owning CI checks the exact selected merged source, then uses the native target environment. Main pushes select dev; manual dev redeployment/production dispatch run from main with an exact `sha`. Serialize per target without cancelling active operations. Production requires a new dispatch and native approval; no dev-verification credential or custom release coordinator is used.
-5. Review runtime dependency advisories, rate limiting, webhook destination behavior, retention and backup controls. Provision monitoring/alerts separately.
+5. Review runtime dependency advisories, rate limiting, webhook destination behavior, retention and backup controls. Accept safe operational logging separately; automatic alerts are deferred pending demonstrated usage needs.
 6. Probe RPC genesis and bounded dependencies; apply reviewed forward-compatible migrations before API code, then deploy the compatible frontend. Readiness remains configuration-only.
 7. Complete manual localhost acceptance and controlled live dev payment/failure/recovery acceptance. Fixtures and dry-run builds are insufficient.
 
@@ -369,7 +369,7 @@ deployment, payment execution or data mutation. Production remains Devnet-only.
 
 ### Ongoing monitoring and recovery
 
-Before public activation, configure alerts for API errors, pending verification age, exhausted webhook events and delivery backlog. Health/readiness alone do not certify payments. Logs may include safe request IDs/error classifications, never credentials, checkout tokens or provider payloads.
+Before public activation, accept safe operational logging and its access/retention controls. Automatic alerts, pending-age/backlog detection, dashboards and merchant-site monitoring are deferred pending demonstrated usage needs. Health/readiness alone do not certify payments. Logs may include safe request IDs/error classifications, never credentials, checkout tokens or provider payloads. See [support diagnostics](support.md) for lookup steps, coverage and hosted prerequisites.
 
 Record recoverable provider artifacts before release. Rehearse restoring the prior compatible API/frontend pair without reversing payment data; verify compatibility with current migrations. Rehearse database recovery only on an isolated non-production copy. No automatic down-migrations, database resets or payment deletion.
 
