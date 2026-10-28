@@ -139,7 +139,7 @@ database writes.
 Ciphertext uses `v1:key-id:nonce:ciphertext-with-tag`. AES-256-GCM uses a fresh
 96-bit nonce and 128-bit authentication tag. Authenticated metadata binds purpose,
 format version, key ID, environment and merchant ID, preventing cross-merchant or
-cross-environment substitution. Decryption happens only when signing, without
+cross-environment substitution. Decryption happens during signing and re-encryption, without
 logging plaintext.
 
 Missing keys or authentication failures stop delivery before a fetch or retry
@@ -171,8 +171,10 @@ does not reset payments, import merchants, revoke keys or delete old secrets.
 
 Before switching hosted code, separately approve/apply the migration, provision
 the intended merchant IDs, configure webhook encryption where needed, verify
-schema/recovery evidence and approve the compatible backend deployment. `add`
-generates a new key even for an existing merchant ID. Coordinate secure handoff
+schema/recovery evidence and approve the compatible backend deployment. Before
+using `add`, confirm that the legacy merchant ID does not already exist in D1.
+`add` creates a new record and key; it rejects an existing D1 record. Use a separately
+confirmed `rotate-key` operation to replace an existing record's key. Coordinate secure handoff
 and installation on the merchant's server during an approved maintenance window.
 This procedure does not guarantee uninterrupted authentication between the
 backend/key switches.

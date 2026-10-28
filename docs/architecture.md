@@ -94,7 +94,8 @@ Expiry, rejection or a network error does not prove that no funds moved.
 
 ## Webhooks
 
-Webhooks are optional. Delivery retries at most **12 times** and can produce
+Webhooks are optional. Delivery makes at most **12 attempts total**, including the
+initial attempt, and can produce
 duplicates. Receivers must verify signatures and deduplicate events. A notification
 failure does not undo settlement.
 
