@@ -1,94 +1,65 @@
-# Support diagnostics
+# Gateway error logs
 
-## Asking for help
+These logs help diagnose problems inside the gateway. They do **not** tell you
+whether a payment succeeded or failed. Payment status and finalized blockchain
+evidence are checked separately.
 
-Ask the merchant or customer for the displayed Request ID, approximate time and
-the action that failed. Never ask for API keys, checkout URLs/tokens, wallet seed
-phrases or private keys. A reference is only a lookup label, never authorization
-to view a payment. Authenticate and authorize any separate payment-status inquiry.
+## Where to find logs
 
-## Looking up a failure
+In Cloudflare, open **Workers & Pages → the intended gateway Worker → Observability
+→ Logs**. Select a time range and search for the Request ID shown in the error message.
 
-In the intended environment's restricted operator logs, search `requestId` for an
-API failure. Records contain `event: api.failure`, a fixed `operation` and `code`.
-`INTERNAL_ERROR` identifies an unexpected failure in that operation;
-`CONFIGURATION_FAILED` identifies unavailable runtime configuration. Neither code
-proves the root cause. Use the category to investigate the affected code and
-dependency without exporting raw credentials, requests or provider payloads.
+API failures use `event: api.failure` and `requestId`. Background-job failures use
+`event: scheduled.failure` and `runId`. One background run can process several payments.
 
-Scheduled failures use `event: scheduled.failure` and an independent `runId` shared
-across the invocation. Operations distinguish configuration, verification, webhook
-delivery and rate-limit cleanup. `WEBHOOK_CONFIGURATION_BLOCKED` means a destination
-or signing configuration could not be used; it does not mean settlement failed.
-A run can process several payments; it is not linked to an individual customer.
+A Request ID is a lookup reference, not permission to view a payment. Authenticate
+and check ownership before reading payment details.
 
-Expected public API errors (including ordinary 429 responses), retryable verification
-provider errors and webhook transport/non-success responses are not unexpected-error
-logs. Webhook delivery state remains in the durable outbox. Successful requests are
-not logged by this feature, so not every returned Request ID has a custom log entry.
-Wallet-only failures, transport failures and requests that never reach the Worker
-may have no gateway reference. Checkout shows validated API error references when
-that error is displayed; it does not invent a reference for wallet errors.
+## What is logged
 
-Logs cannot establish settlement or absence of a transfer. Use authenticated payment
-status and finalized-chain reconciliation under the applicable authorization. Never
-recommend another payment merely because a request failed or a log is missing.
+- `INTERNAL_ERROR`: an unexpected failure while handling an API request or
+  background operation.
+- `CONFIGURATION_FAILED`: required API runtime settings could not be used.
+- `WEBHOOK_CONFIGURATION_BLOCKED`: a webhook destination or signing configuration
+  could not safely be used. Settlement is not undone.
+- `SUPPORT_LOG_CHECK`: a deliberate, dev-only test error.
 
-## Hosted collection
+Records include a fixed operation name and a generated reference. Application logs
+do not include credentials, checkout tokens, raw exceptions or provider payloads.
+The code identifies the category, not the root cause.
 
-Collection is an explicit, separately approved dev setting in the environment's
-managed `WORKER_CONFIG_JSON`, not a local Wrangler setting or dashboard override.
-The delivery guard accepts only this exact optional `observability` object in dev;
-production rejects it. Omit it to retain the existing configuration.
+## What is not logged by this feature
 
-```json
-{
-  "enabled": true,
-  "redact_query_string": true,
-  "issues": { "enabled": false },
-  "logs": {
-    "enabled": true,
-    "head_sampling_rate": 1,
-    "invocation_logs": false,
-    "persist": true,
-    "destinations": []
-  },
-  "traces": { "enabled": false, "persist": false, "destinations": [] }
-}
-```
+- Expected API errors, including ordinary rate-limit responses.
+- Retryable verification-provider errors.
+- Normal webhook network failures or unsuccessful HTTP responses. Webhook retry
+  state stays in the database.
+- Successful requests.
+- Wallet-only failures or requests that never reach the backend.
 
-Automatic invocation logs, Issues, traces and external sinks remain off. Query-string
-redaction adds protection against URL tokens; it does not sanitize arbitrary console
-messages or uncaught platform exceptions. Inspect the complete stored event's metadata
-before accepting collection; application-field allowlisting alone is insufficient.
-Do not enable collection if provider enrichment exposes credentials or checkout tokens.
+Checkout displays validated API error references when available; it does not invent
+one for wallet errors. Not every Request ID has a custom log entry. A missing log
+does not prove that no transfer occurred. Never recommend another payment just
+because a request failed. Use authorized payment-status reads and finalized-chain
+checks to establish settlement.
 
-Use restricted Cloudflare operator access, not a public log endpoint or merchant
-dashboard. Before activation, verify the actual account roles and token scopes allow
-only intended operators to read logs. Never broaden deployment credentials merely to
-query logs. Confirm the account plan and retention: Cloudflare documents three days
-on Free and seven days on Paid, with plan-specific limits and possible usage charges.
-These are provider defaults, not a configurable retention promise. See
-[Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/).
+## Access, privacy and availability
 
-## Hosted acceptance
+Logs are for restricted operators, not a public endpoint or merchant dashboard.
+Before relying on them, verify access, collection and the complete stored event,
+including fields added by Cloudflare. Application-field filtering alone does not
+prove provider metadata is safe. Never export raw logs containing sensitive details.
 
-1. Verify the exact deployed source/version and readiness; keep production and payment
-   data unchanged. Serialize configuration and delivery through the existing dev pipeline.
-2. With a server-side merchant credential, send one `POST /v1/support/log-check` in dev.
-   This deliberately returns HTTP 500 with `SUPPORT_LOG_CHECK` and a Request ID. It
-   authenticates the merchant and consumes rate-limit counters, but never creates or
-   submits a payment, changes settlement, calls providers or reads the request body.
-   The check is limited to once per merchant per minute, in addition to the IP budget.
-   It works with dev payments disabled and is unavailable in local and production.
-   Do not expose the credential in a browser.
-3. In restricted stored logs, find that Request ID and verify `event: api.failure`,
-   `operation: support_log_check`, `code: SUPPORT_LOG_CHECK`. Inspect complete metadata
-   with synthetic canary inputs for URL/query/header/body leakage; do not export raw
-   logs. This verifies collection and lookup, not a real payment or unexpected failure.
-4. Retain sanitized source/provider identity, timestamp, reference, lookup, privacy,
-   access and retention evidence in the release record. Missing access, ambiguous
-   metadata or unavailable search leaves acceptance incomplete; do not claim success.
+Cloudflare documents three-day retention on Free and seven days on Paid. Check
+[Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/)
+for current limits and charges; these are provider defaults, not retention guarantees.
 
-Source logging and green delivery alone are not hosted acceptance. Sampling, expiry,
-quota exhaustion or unavailable collection means missing logs are inconclusive.
+Configuration and hosted verification are separate operator procedures. Source
+code, green CI and deployment success do not prove stored-log lookup or privacy.
+Sampling, expiry, quotas or unavailable collection can explain missing records.
+Keep credentials Sensitive; do not weaken key protection to test logging.
+
+## Asking someone for details
+
+Ask for the displayed Request ID, approximate time and action that failed. Never
+ask for an API key, checkout URL/token, seed phrase or private key.

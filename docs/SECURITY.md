@@ -1,19 +1,48 @@
-# Security and release limitations
+# Security rules and limitations
 
-Devnet-only demonstration. No mainnet, real funds, custody, automated refunds or payment-provider certification.
+This is a **Devnet-only demonstration**. It does not support mainnet, real funds,
+custody, automatic refunds or payment-provider certification. Production hosting
+does not change that limit.
 
-Security-sensitive authentication, verification, database and webhook changes require affected tests and read-only review. Do not publish exploit details or credentials in public issues. Configure a private reporting channel before public launch.
+## Credentials and merchant data
 
-Release blockers until independently accepted: hosted isolation and protection gates, scoped credentials, manual wallet/dev acceptance, webhook SSRF/public-network behavior, monitoring, durable backup/restore, retention requirements, dependency advisory disposition and compatible recovery evidence. Local implementation is not production acceptance.
+- Store merchant API-key hashes in D1, not original keys.
+- Store webhook signing secrets as AES-GCM ciphertext. Keep the encryption keyring
+  outside D1.
+- Keep optional merchant contact details private. Do not include them in checkout
+  responses, webhook payloads or logs.
+- The merchant operator tool has no public administration route. It displays new
+  API keys once and requires private handling. Hosted mutations need separate
+  authorization.
 
-Merchant profiles are operator-private D1 data. Authentication stores API-key hashes;
-webhook signing secrets are AES-GCM ciphertext with a separate runtime keyring.
-Contact fields are optional personal data and must not enter checkout responses,
-webhooks or logs. The operator CLI has no public route, prints newly generated API
-keys once, and needs private terminal handling and separate hosted mutation approval.
-See [merchant onboarding](merchant-onboarding.md) for key recovery, rotation, audit
-limitations, disabling semantics and cutover prerequisites.
+See [merchant onboarding](merchant-onboarding.md) for rotation, recovery limits,
+audit limitations and the effects of disabling a merchant.
 
-The merchant example is public amount entry by design. Origin checks are not authentication or bot protection; configure edge abuse controls before exposing it. In real integrations the merchant backend computes the owed USD amount from trusted business data.
+## Public demo and diagnostics
 
-Dev-only `GET /ready` configuration failures include a fixed `error.diagnostic` classification. This public diagnostic reveals which configuration rule failed, but never includes secret values, URLs, parser exceptions or provider responses. Production, local and payment-route error envelopes stay generic. Readiness does not contact RPC providers or prove payment acceptance.
+The demo accepts public amount entry; it is not an authenticated merchant dashboard.
+Origin checks do not stop bots. Configure abuse controls before exposing it. In a
+real integration, the merchant server calculates the amount from trusted business data.
+
+When dev `GET /ready` fails configuration checks, it may return a fixed
+`error.diagnostic` category. It must not include secret values, URLs, parser errors
+or provider responses. Local, production and payment-route configuration errors
+remain generic. Readiness does not call RPC providers or prove payments work.
+
+[Gateway error logs](support.md) have separate coverage and privacy requirements.
+A gateway error is not proof that a payment failed.
+
+## Checks required before release
+
+Independently verify environment isolation, protection/approval gates, credential
+scope, wallet payment behavior, webhook destination safety, operational logs,
+retention, backups, isolated restore and compatible recovery artifacts. Review
+dependency advisories. Local tests and deployment success do not replace hosted acceptance.
+
+Authentication, transaction verification, database and webhook changes require
+relevant tests and independent read-only review.
+
+## Reporting security problems
+
+Do not publish credentials or exploit details in public issues. Set up a private
+reporting channel before public launch.
