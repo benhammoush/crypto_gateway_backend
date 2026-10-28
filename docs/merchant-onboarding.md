@@ -1,32 +1,37 @@
-# Merchant onboarding
+# Managing merchants
 
-Merchants are independent D1 records, not entries in a shared hidden JSON secret.
-Provisioning is an operator action; there is no public merchant administration API.
-This procedure describes the source implementation, not current hosted acceptance.
+Each merchant has its own D1 record. An operator manages these records with
+`npm run merchant`; there is no public merchant-administration API. This guide
+describes the tool, not the current acceptance status of a hosted environment.
 
-## Record and privacy
+## Merchant records and privacy
 
-Required: stable `id`, display `name`, `recipient`, API-key hash, status and audit
-metadata. Optional: `legal_name`, `email`, international `phone` (for example
-`+33123456789`), uppercase two-letter `country_code`, and webhook configuration.
-Use `null` to clear optional fields. Names are not snapshotted onto payments;
-existing payments retain their merchant ID and original recipient.
+Required fields are the stable `id`, display `name`, `recipient`, API-key hash,
+status and audit metadata. Optional fields are `legal_name`, `email`, international
+`phone` (such as `+33123456789`), uppercase two-letter `country_code` and webhook
+settings. Use `null` to clear an optional field.
 
-Contact details are for operator support, not checkout, analytics, logs or webhook
-payloads. Collect only what is needed, restrict D1 access, and agree retention and
-backup handling before collecting real personal data. No automatic deletion policy
-is introduced. Audit rows contain a caller-supplied operator label, revision, time
-and changed-field flags, not profile values or secrets. The label is not proof of
-operator identity; provider access controls and provider audit evidence remain
-necessary. Creation audit rows identify the creation without copying the profile.
+Payments keep their original merchant ID and recipient. Profile names are not
+copied onto payments. Never reuse a merchant ID for a different business: it would
+expose historical payment reads.
 
-## Operator tool
+Contact details are private support data. Collect only what is needed, restrict
+access and agree retention/backup handling before collecting real personal data.
+They must not appear in checkout, analytics, logs or webhook payloads. There is no
+automatic deletion policy.
 
-Use Node 24 and the repository's installed dependencies. Apply forward migrations to
-the local database with `npm run db:local` before local provisioning. The tool never
-applies migrations itself. Keep the gateway disabled until setup is verified.
+Audit records contain the operator label, revision, time and changed-field flags,
+not values or secrets. Creation records identify creation without copying the
+profile. The label is supplied by the caller; it does not prove identity. Provider
+access controls and audit evidence are still needed.
 
-`npm run merchant --` accepts these explicit arguments:
+## Local setup and command inputs
+
+Use Node 24 and the installed repository dependencies. Run `npm run db:local`
+before local provisioning. The merchant tool does not apply migrations. Keep the
+gateway disabled until setup is verified.
+
+Every `npm run merchant --` command requires:
 
 | Argument        | Meaning                                                            |
 | --------------- | ------------------------------------------------------------------ |
@@ -37,12 +42,12 @@ applies migrations itself. Keep the gateway disabled until setup is verified.
 | `--revision`    | Expected current revision; use `0` only for creation.              |
 | `--confirm`     | Exact `environment:id:operation:revision`.                         |
 
-Private input is a JSON object on stdin, limited to 16 KiB. For `add`, supply `name`
-and `recipient`; optional fields can be included. For `update`, supply only changed
-profile fields. Other operations require `{}`. Unknown fields are rejected. Status,
-key hashes, audit metadata and revisions cannot be supplied through profile input.
+Send private JSON through stdin, then close stdin. The limit is 16 KiB. `add`
+requires `name` and `recipient`; `update` accepts only changed profile fields.
+Other operations require `{}`. Unknown fields and caller-supplied status, hashes,
+revisions or audit metadata are rejected.
 
-Example **synthetic** add input (not real onboarding data):
+Synthetic input example:
 
 ```json
 {
@@ -52,62 +57,65 @@ Example **synthetic** add input (not real onboarding data):
 }
 ```
 
-Run the command with private stdin supplied by a trusted local input mechanism:
+Example local command, with private stdin supplied by a trusted input mechanism:
 
 ```text
 npm run merchant -- --environment local --operation add --id example --operator owner --revision 0 --confirm local:example:add:0
 ```
 
-Send the JSON and close stdin (EOF). Do not put real credentials, signing secrets
-or contacts in command arguments, shell history, tracked files, chat or CI logs.
-If using a private input file, protect it and remove it according to your secret
-handling policy. Local Wrangler uses a temporary SQL file containing profile data,
-hashes and ciphertext, never original API keys or plaintext webhook secrets; the
-tool removes it on completion/failure. OS-level interruption can leave a temporary
-file, and Windows access controls must protect the operator's temporary directory.
+Do not put real contacts or secrets in command arguments, shell history, tracked
+files, chat or CI logs. Protect private input files and remove them under your
+secret-handling policy.
 
-Successful `add` and `rotate-key` print the new 256-bit random API key **once** on
-stdout. Use a private interactive terminal with transcript/log capture disabled;
-save it securely and transfer it to the merchant through a secure channel. Other
-operations return only ID, revision and status. Do not run credential-generating
-operations in logged automation. Every successful operation advances the revision.
-Stale revisions fail instead of overwriting someone else's changes.
+Local Wrangler uses a temporary SQL file containing profile data, hashes and
+ciphertext, not original API keys or plaintext webhook secrets. The tool removes
+it on normal completion/failure, but interruption can leave it behind. Protect
+the temporary directory with OS access controls.
 
-Before updating, inspect the selected merchant's ID, revision, status and intended
-fields through approved operator access, not a public endpoint. Do not read/export
-all merchant records merely to add one. Disable/enable and recipient changes are
-explicitly confirmed operations; validate the recipient independently. Changing a
-recipient affects only future payments. Changing a webhook destination requires an
-explicit signing secret for that destination, even when deliberately reusing the
-previous secret. Set `webhook_url` to `null` to remove both webhook fields.
+## API keys and updates
 
-## Hosted operations require separate authorization
+`add` and `rotate-key` generate a random 256-bit API key and print it **once**.
+Run them in a private interactive terminal with transcript/log capture disabled.
+Save the key securely and transfer it through a secure channel. Do not run
+key-generating operations in logged automation.
 
-Do not run this tool against hosted targets under implementation approval alone.
-For each operation, approve the exact environment, source, account, database,
-merchant, operation, revision and permitted credential capability. Arrange exclusive
-target maintenance: freeze competing pushes/merges/dispatches and operator writes,
-let active deliveries finish, and do not cancel mutations. Standalone CLI execution
-does not acquire a GitHub workflow lock.
+Other operations return only the ID, revision and status. Every successful
+operation increases the revision; stale revisions fail instead of overwriting
+someone else's changes. Inspect only the intended merchant's ID, revision,
+status and fields before an update, not every merchant record.
 
-In addition to the arguments above, hosted commands require `--account`,
-`--database`, and `--confirm-target environment:account:database`. The process
-environment must supply a separately approved `CLOUDFLARE_API_TOKEN`. The tool checks
-database metadata against the exact ID and `crypto-gateway-dev` or
-`crypto-gateway-production` name before issuing parameterized D1 queries. It does
-not prove least-privilege token scope, schema acceptance or exclusive access. Local
-mode rejects hosted target flags and uses only Wrangler's local `DB` binding.
+Disable/enable and recipient changes need explicit confirmation. Validate
+recipient changes independently; they affect future payments only. A webhook
+destination change requires an explicit signing secret, even when reusing the
+previous secret. Setting `webhook_url` to `null` removes both webhook fields.
 
-Errors are sanitized and **never automatically retried**. A timeout can occur after
-a write commits. Inspect the exact merchant revision and audit record before any
-further mutation. If a creation or key rotation committed but its returned key was
-lost, perform a separately confirmed key rotation at the observed revision; there
-is no key recovery from its hash. Do not replay an uncertain command blindly.
+Disabling a merchant blocks merchant API authentication and pauses webhook
+delivery. It does not delete history, cancel existing checkout access or stop
+verification of already-submitted transfers. Already-sent funds can still settle.
+Re-enabling can resume pending webhooks.
 
-Disabling a merchant blocks merchant API authentication and pauses webhook delivery.
-It does not delete payment history, cancel already-issued checkout access, or stop
-verification of previously submitted transactions. That permits already-sent funds
-to settle. Re-enabling can make pending webhook events eligible again.
+## Hosted operations
+
+Implementation approval is not permission to modify hosted merchants. Before each
+operation, approve the exact environment, source, account, database, merchant,
+operation, revision and credential capability.
+
+Pause competing merges, pushes, dispatches and operator writes; let active
+deliveries finish. Do not cancel mutations. The standalone tool does not acquire
+a GitHub workflow lock.
+
+Hosted commands also require `--account`, `--database` and
+`--confirm-target environment:account:database`, plus a separately approved
+`CLOUDFLARE_API_TOKEN` in the process environment. The tool verifies the database
+ID and `crypto-gateway-dev` or `crypto-gateway-production` name before parameterized
+queries. That does not prove token scope, schema acceptance or exclusive access.
+Local mode rejects hosted flags and uses only the local `DB` binding.
+
+Errors are sanitized and **never automatically retried**. A timeout can happen
+after a write commits. Inspect the merchant revision and audit record before
+another mutation. If a new key was lost after a successful add/rotation, it cannot
+be recovered from its hash; a separately confirmed rotation at the observed
+revision is needed. Never blindly repeat the original command.
 
 ## Webhook encryption and rotation
 
@@ -117,29 +125,31 @@ to settle. Re-enabling can make pending webhook events eligible again.
 {"active":"key-id","keys":{"key-id":"<64 lowercase hexadecimal characters>"}}
 ```
 
-Each value is an independently generated random 256-bit encryption key. Use distinct
-keys for local, dev and production. Keep an authoritative recovery copy in approved
-secret storage. **Losing a referenced key makes that ciphertext unusable.** Never
-store encryption keys in D1, ordinary Worker variables, Git or audit records.
+Use independent random 256-bit keys for local, dev and production. Keep an
+authoritative recovery copy in approved secret storage. **Losing a referenced key
+makes its ciphertext unusable.** Never store these keys in D1, normal Worker
+variables, Git or audit records.
 
-The operator tool receives the same target keyring through its process environment,
-plus the target's `WEBHOOK_HOSTS` allowlist. Runtime delivery independently rechecks
-that allowlist; provisioning cannot authorize a new hostname. Input fields
-`webhook_url` and `webhook_secret` configure a webhook together. Signing secrets
-must contain 32–512 characters and are encrypted before any database write.
+Supply the target keyring to the operator process and configure the same keyring
+as a Worker secret. Both must respect `WEBHOOK_HOSTS`; provisioning cannot
+authorize a new hostname. `webhook_url` and `webhook_secret` are configured
+together. Signing secrets must be 32–512 characters and are encrypted before
+database writes.
 
-Ciphertext is versioned as `v1:key-id:nonce:ciphertext-with-tag`. AES-256-GCM uses a
-fresh random 96-bit nonce and a 128-bit authentication tag. Authenticated metadata
-binds the purpose, format version, key ID, environment and merchant ID, preventing
-cross-merchant/environment substitution. Delivery decrypts only when needed for
-signing, without logging plaintext. Authentication failures and missing keys stop
-delivery before fetching or consuming a retry attempt. Such events are deferred
-for five minutes with `WEBHOOK_CONFIGURATION_BLOCKED`, allowing later events for
-other merchants to progress; operators must monitor that classification. Absent keyrings disable
-webhook delivery but do not block polling-only merchants. Readiness remains
-configuration-only and does not certify that stored ciphertext is decryptable.
+Ciphertext uses `v1:key-id:nonce:ciphertext-with-tag`. AES-256-GCM uses a fresh
+96-bit nonce and 128-bit authentication tag. Authenticated metadata binds purpose,
+format version, key ID, environment and merchant ID, preventing cross-merchant or
+cross-environment substitution. Decryption happens during signing and re-encryption, without
+logging plaintext.
 
-To rotate encryption keys, under separate operational approval:
+Missing keys or authentication failures stop delivery before a fetch or retry
+attempt is consumed. Blocked events are delayed five minutes with
+`WEBHOOK_CONFIGURATION_BLOCKED` so other merchants can proceed; operators must
+monitor this category. Without a keyring, webhook delivery is disabled but
+polling-only merchants can still work. Readiness does not prove stored secrets
+can be decrypted.
+
+To rotate encryption keys under separate operational approval:
 
 1. Add a new key ID/material while retaining all old keys. Update the Worker and
    operator keyrings consistently; change `active` to the new ID.
@@ -149,39 +159,34 @@ To rotate encryption keys, under separate operational approval:
 4. Remove old keys only after considering database backups and recovery records
    that still need them. Never replace material under an existing key ID.
 
-This is encryption-key rotation, not webhook signing-secret rotation. Changing a
-signing secret or URL changes pending deliveries and requires coordination with
-the receiver. Encryption does not hide profile contacts or webhook URLs from D1
-operators; those still need access controls.
+Encryption-key rotation is different from signing-secret rotation. Changing the
+signing secret or URL affects pending deliveries and must be coordinated with
+the receiver. D1 operators can still read profile contacts and webhook URLs;
+restrict their access.
 
-## Cutover prerequisites
+## Moving existing merchants to D1
 
 The forward-only `0002_merchants.sql` adds merchant/audit tables and triggers. It
-does not reset payment tables, copy existing merchants, revoke keys or delete the
-old secret. No importer or hosted migration is included in this task.
+does not reset payments, import merchants, revoke keys or delete old secrets.
 
-Before switching hosted code: approve and apply the migration, provision the intended
-merchant IDs in D1, configure the separate encryption keyring where webhooks are
-needed, verify schema/readback and recovery evidence, then approve the compatible
-backend deployment. `add` generates a new API key; retaining a merchant ID does not
-preserve its previous credential. Securely hand each existing merchant its new key
-and coordinate installation in its server-side integration during an approved
-maintenance window. Expect authenticated requests to fail between the backend/key
-switches; this procedure does not provide zero-downtime credential continuity.
-Before approving cutover completion and resuming normal traffic, require every
-continuing merchant to activate its new credential and pass an authenticated
-`GET /v1/payments/{id}` for a known payment belonging to that merchant. Do not create
-a payment merely to test authentication. If a merchant lacks a known payment,
-agree a separate bounded verification procedure before accepting its cutover.
+Before switching hosted code, separately approve/apply the migration, provision
+the intended merchant IDs, configure webhook encryption where needed, verify
+schema/recovery evidence and approve the compatible backend deployment. Before
+using `add`, confirm that the legacy merchant ID does not already exist in D1.
+`add` creates a new record and key; it rejects an existing D1 record. Use a separately
+confirmed `rotate-key` operation to replace an existing record's key. Coordinate secure handoff
+and installation on the merchant's server during an approved maintenance window.
+This procedure does not guarantee uninterrupted authentication between the
+backend/key switches.
 
-Existing payments retain their original merchant ID; assigning that ID to a
-different business would expose its historical merchant-scoped reads. Never recycle
-merchant IDs. Without a D1 record matching its credential hash, a merchant cannot
-authenticate. Preserve old configuration until the separately approved cutover is
-accepted; do not infer permission to delete it from this implementation.
+Before resuming traffic, each continuing merchant must activate its key and
+successfully read a known, owned payment with `GET /v1/payments/{id}`. Do not create
+a payment just to test authentication. If none exists, agree a separate bounded check.
 
-The retired first-schema tool intentionally refuses a multi-migration source tree.
-Do not reuse it for this initialized-database migration. Follow the owning
-[delivery contract](delivery.md) for a new reviewed operational procedure and updated
-migration-set attestation. No frontend contract-source pin or provider settings
-are changed automatically.
+Without a D1 record matching its credential hash, a merchant cannot authenticate.
+Preserve old configuration until cutover is accepted; acceptance does not itself
+authorize deletion. The retired first-schema tool refuses a multi-migration
+source tree. Do not reuse it on an initialized database or remove migrations to
+bypass its guard. Hosted migration needs a separately reviewed procedure and an
+updated migration-set attestation. Frontend contract pins and provider settings
+are not changed automatically.
