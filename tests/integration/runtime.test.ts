@@ -3,7 +3,7 @@
  * @packageDocumentation
  */
 
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { migrate, seedMerchant, fixtureKeys } from '../fixtures';
 import { MEMO_PROGRAM, ParsedTransaction } from '../../src/solana';
@@ -11,6 +11,7 @@ import { SOL_MINT } from '../../src/price';
 
 let mf: Miniflare;
 let tx: ParsedTransaction | null = null;
+let failVerification = false;
 const outgoing: string[] = [];
 let webhookDeliveries = 0;
 const credential = 'runtime_fixture_credential_1234567890';
@@ -67,6 +68,8 @@ beforeAll(async () => {
               value: { blockhash: '1'.repeat(32), lastValidBlockHeight: 100 },
             },
           });
+        if (body.method === 'getTransaction' && failVerification)
+          return new Response('private RPC failure details', { status: 503 });
         if (body.method === 'getTransaction')
           return Response.json({ result: tx });
         throw new Error('Unexpected runtime network request.');
@@ -87,127 +90,172 @@ afterAll(async () => {
   await mf?.dispose();
 });
 
-it('retries null-to-finalized transactions through the actual bundled scheduled handler', async () => {
-  const created = await mf.dispatchFetch('http://localhost/v1/payments', {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${credential}`,
-      'content-type': 'application/json',
-      'idempotency-key': 'runtime_fixture_key',
-    },
-    body: JSON.stringify({ usdCents: 1000, merchantReference: 'runtime' }),
-  });
-  expect(
-    created.status,
-    `${await created.clone().text()} outgoing=${JSON.stringify(outgoing)}`,
-  ).toBe(200);
-  const { data } = (await created.json()) as {
-    data: {
-      id: string;
-      lamports: string;
-      checkoutUrl: string;
-      createdAt: number;
+beforeEach(async () => {
+  tx = null;
+  failVerification = false;
+  outgoing.length = 0;
+  webhookDeliveries = 0;
+  const db = await mf.getD1Database('DB');
+  await db.batch(
+    ['events', 'attempts', 'payments', 'rate_limits'].map((table) =>
+      db.prepare(`DELETE FROM ${table}`),
+    ),
+  );
+});
+
+it.each(['missing transaction', 'RPC failure'])(
+  'recovers from %s through the actual bundled scheduled handler',
+  async (failure) => {
+    const created = await mf.dispatchFetch('http://localhost/v1/payments', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${credential}`,
+        'content-type': 'application/json',
+        'idempotency-key': 'runtime_fixture_key',
+      },
+      body: JSON.stringify({ usdCents: 1000, merchantReference: 'runtime' }),
+    });
+    expect(
+      created.status,
+      `${await created.clone().text()} outgoing=${JSON.stringify(outgoing)}`,
+    ).toBe(200);
+    const { data } = (await created.json()) as {
+      data: {
+        id: string;
+        lamports: string;
+        checkoutUrl: string;
+        createdAt: number;
+      };
     };
-  };
-  const token = new URL(data.checkoutUrl).hash.slice(1);
-  for (const [method, params] of [
-    ['getGenesisHash', []],
-    ['getLatestBlockhash', [{ commitment: 'finalized' }]],
-  ]) {
-    const result = await mf.dispatchFetch(
-      `http://localhost/v1/checkout/${data.id}/rpc`,
+    const token = new URL(data.checkoutUrl).hash.slice(1);
+    for (const [method, params] of [
+      ['getGenesisHash', []],
+      ['getLatestBlockhash', [{ commitment: 'finalized' }]],
+    ]) {
+      const result = await mf.dispatchFetch(
+        `http://localhost/v1/checkout/${data.id}/rpc`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${token}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 9, method, params }),
+        },
+      );
+      expect(result.status).toBe(200);
+      expect(await result.json()).toMatchObject({ jsonrpc: '2.0', id: 9 });
+    }
+    const signature = '1'.repeat(64);
+    failVerification = failure === 'RPC failure';
+    const submitted = await mf.dispatchFetch(
+      `http://localhost/v1/checkout/${data.id}/transactions`,
       {
         method: 'POST',
         headers: {
           authorization: `Bearer ${token}`,
           'content-type': 'application/json',
         },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 9, method, params }),
+        body: JSON.stringify({ signature }),
       },
     );
-    expect(result.status).toBe(200);
-    expect(await result.json()).toMatchObject({ jsonrpc: '2.0', id: 9 });
-  }
-  const signature = '1'.repeat(64);
-  const submitted = await mf.dispatchFetch(
-    `http://localhost/v1/checkout/${data.id}/transactions`,
-    {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${token}`,
-        'content-type': 'application/json',
+    expect(submitted.status).toBe(failVerification ? 503 : 200);
+    if (failVerification) {
+      const error = await submitted.text();
+      expect(JSON.parse(error)).toMatchObject({
+        error: { code: 'RPC_UNAVAILABLE' },
+      });
+      expect(error).not.toContain('private RPC failure details');
+    } else {
+      expect(
+        ((await submitted.json()) as { data: { status: string } }).data.status,
+      ).toBe('verifying');
+    }
+    const pending = await mf.dispatchFetch(
+      `http://localhost/v1/checkout/${data.id}`,
+      { headers: { authorization: `Bearer ${token}` } },
+    );
+    expect(pending.status).toBe(200);
+    expect(await pending.json()).toMatchObject({
+      data: {
+        status: 'verifying',
+        signature: null,
+        attempts: [{ signature, state: 'pending' }],
       },
-      body: JSON.stringify({ signature }),
-    },
-  );
-  expect(submitted.status).toBe(200);
-  expect(
-    ((await submitted.json()) as { data: { status: string } }).data.status,
-  ).toBe('verifying');
-  tx = {
-    blockTime: Math.floor(data.createdAt / 1000),
-    meta: {
-      err: null,
-      preBalances: [1_000_000_000, 0],
-      postBalances: [1, Number(data.lamports)],
-    },
-    transaction: {
-      signatures: [signature],
-      message: {
-        accountKeys: [
-          { pubkey: 'fixture-payer', signer: true },
-          { pubkey: recipient, signer: false },
-        ],
-        instructions: [
-          {
-            programId: 'ComputeBudget111111111111111111111111111111',
-            accounts: [],
-            data: '3qi1MbrtkR83',
-          },
-          {
-            programId: 'ComputeBudget111111111111111111111111111111',
-            accounts: [],
-            data: 'Fj2Eoy',
-          },
-          {
-            programId: '11111111111111111111111111111111',
-            parsed: {
-              type: 'transfer',
-              info: {
-                source: 'fixture-payer',
-                destination: recipient,
-                lamports: Number(data.lamports),
+    });
+    const db = await mf.getD1Database('DB');
+    expect(
+      await db
+        .prepare('SELECT COUNT(*) AS n FROM attempts WHERE payment_id = ?')
+        .bind(data.id)
+        .first(),
+    ).toEqual({ n: 1 });
+    failVerification = false;
+    tx = {
+      blockTime: Math.floor(data.createdAt / 1000),
+      meta: {
+        err: null,
+        preBalances: [1_000_000_000, 0],
+        postBalances: [1, Number(data.lamports)],
+      },
+      transaction: {
+        signatures: [signature],
+        message: {
+          accountKeys: [
+            { pubkey: 'fixture-payer', signer: true },
+            { pubkey: recipient, signer: false },
+          ],
+          instructions: [
+            {
+              programId: 'ComputeBudget111111111111111111111111111111',
+              accounts: [],
+              data: '3qi1MbrtkR83',
+            },
+            {
+              programId: 'ComputeBudget111111111111111111111111111111',
+              accounts: [],
+              data: 'Fj2Eoy',
+            },
+            {
+              programId: '11111111111111111111111111111111',
+              parsed: {
+                type: 'transfer',
+                info: {
+                  source: 'fixture-payer',
+                  destination: recipient,
+                  lamports: Number(data.lamports),
+                },
               },
             },
-          },
-          { programId: MEMO_PROGRAM, parsed: `crypto_gateway:${data.id}` },
-        ],
+            { programId: MEMO_PROGRAM, parsed: `crypto_gateway:${data.id}` },
+          ],
+        },
       },
-    },
-  };
-  const db = await mf.getD1Database('DB');
-  await db.prepare('UPDATE attempts SET next_attempt_at = 0').run();
-  await (await mf.getWorker()).scheduled({ cron: '* * * * *' });
-  const status = await mf.dispatchFetch(
-    `http://localhost/v1/checkout/${data.id}`,
-    { headers: { authorization: `Bearer ${token}` } },
-  );
-  expect(
-    ((await status.json()) as { data: { status: string } }).data.status,
-  ).toBe('settled');
-  expect(
-    (
-      await db
-        .prepare('SELECT COUNT(*) AS n FROM events')
-        .first<{ n: number }>()
-    )?.n,
-  ).toBe(1);
-  expect(webhookDeliveries).toBe(1);
-  expect(
-    (
-      await db
-        .prepare('SELECT delivered_at FROM events')
-        .first<{ delivered_at: number | null }>()
-    )?.delivered_at,
-  ).toBeTypeOf('number');
-});
+    };
+    await db.prepare('UPDATE attempts SET next_attempt_at = 0').run();
+    await (await mf.getWorker()).scheduled({ cron: '* * * * *' });
+    const status = await mf.dispatchFetch(
+      `http://localhost/v1/checkout/${data.id}`,
+      { headers: { authorization: `Bearer ${token}` } },
+    );
+    expect(
+      ((await status.json()) as { data: { status: string } }).data.status,
+    ).toBe('settled');
+    await (await mf.getWorker()).scheduled({ cron: '* * * * *' });
+    expect(
+      (
+        await db
+          .prepare('SELECT COUNT(*) AS n FROM events')
+          .first<{ n: number }>()
+      )?.n,
+    ).toBe(1);
+    expect(webhookDeliveries).toBe(1);
+    expect(
+      (
+        await db
+          .prepare('SELECT delivered_at FROM events')
+          .first<{ delivered_at: number | null }>()
+      )?.delivered_at,
+    ).toBeTypeOf('number');
+  },
+);
