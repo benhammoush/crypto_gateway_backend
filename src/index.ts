@@ -5,6 +5,7 @@
 
 import { config, ConfigurationError } from './config';
 import { checkoutRpc } from './checkout-rpc';
+import { getQuote } from './price';
 import {
   checkoutToken,
   createPayment,
@@ -98,7 +99,7 @@ export default {
       if (path === '/health' && request.method === 'GET') {
         return response(
           {
-            data: { service: 'crypto_gateway_backend', version: '0.3.1' },
+            data: { service: 'crypto_gateway_backend', version: '0.4.0' },
             meta: { requestId },
           },
           requestId,
@@ -175,6 +176,22 @@ export default {
         `ip:${request.headers.get('cf-connecting-ip') ?? 'local'}`,
         180,
       );
+      if (path === '/v1/price' && request.method === 'GET') {
+        await rateLimit(
+          env.DB,
+          `price:${request.headers.get('cf-connecting-ip') ?? 'local'}`,
+          6,
+        );
+        await rateLimit(env.DB, 'price:global', 60);
+        operation = 'price_read';
+        const quote = await getQuote(settings.priceKey);
+        return response(
+          { data: { ...quote, fetchedAt: Date.now() }, meta: { requestId } },
+          requestId,
+          origin,
+          settings.checkoutOrigin,
+        );
+      }
       const credential = bearer(request);
       let data: unknown;
       if (supportLogCheck) {

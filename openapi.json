@@ -2,10 +2,30 @@
   "openapi": "3.1.0",
   "info": {
     "title": "crypto_gateway",
-    "version": "0.3.1",
+    "version": "0.4.0",
     "description": "Non-custodial USD-to-SOL Devnet payments. Merchant endpoints require server-side credentials; checkout endpoints require payment-scoped capabilities."
   },
   "paths": {
+    "/v1/price": {
+      "get": {
+        "operationId": "getReferencePrice",
+        "description": "Public indicative SOL/USD reference from the payment pricing provider, not a locked payment quote. No payment is created or changed. Disabled when payments are disabled. No-store; limited to 6 requests per IP/minute and 60 globally/minute in addition to the general IP budget. fetchedAt is gateway retrieval time, not the time of the provider's last market update.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Validated reference price and gateway retrieval time.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferencePriceEnvelope"
+                }
+              }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/v1/support/log-check": {
       "post": {
         "operationId": "checkSupportLogs",
@@ -163,6 +183,37 @@
       }
     },
     "schemas": {
+      "ReferencePrice": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["usdPrice", "blockId", "fetchedAt"],
+        "properties": {
+          "usdPrice": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Positive USD per SOL, represented as decimal text, possibly in exponent notation."
+          },
+          "blockId": { "type": "integer", "minimum": 1 },
+          "fetchedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Gateway retrieval time in Unix milliseconds; not provider market-update time."
+          }
+        }
+      },
+      "ReferencePriceEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data", "meta"],
+        "properties": {
+          "data": { "$ref": "#/components/schemas/ReferencePrice" },
+          "meta": {
+            "type": "object",
+            "required": ["requestId"],
+            "properties": { "requestId": { "type": "string" } }
+          }
+        }
+      },
       "RpcId": {
         "oneOf": [
           { "type": "string", "minLength": 1, "maxLength": 64 },

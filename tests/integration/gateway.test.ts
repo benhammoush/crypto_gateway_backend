@@ -48,6 +48,9 @@ ajv.addSchema({
   $defs: schemas,
 });
 const validatePayment = ajv.compile({ $ref: 'gateway#/$defs/PaymentEnvelope' });
+const validateReferencePrice = ajv.compile({
+  $ref: 'gateway#/$defs/ReferencePriceEnvelope',
+});
 
 const credential = 'fixture_merchant_credential_1234567890';
 const recipient = 'So11111111111111111111111111111111111111112';
@@ -156,6 +159,100 @@ async function call(
     ).toBe(true);
   return { status: response.status, body: parsed };
 }
+
+it('returns a bounded public reference without creating or changing payments', async () => {
+  const created = await call('/v1/payments', credential, {
+    usdCents: 1000,
+    merchantReference: 'price-reference',
+  });
+  expect(created.status).toBe(200);
+  const before = await env.DB.prepare('SELECT * FROM payments').all();
+  const response = await worker.fetch(
+    new Request('http://localhost:8787/v1/price', {
+      headers: { origin: env.CHECKOUT_ORIGIN! },
+    }),
+    env,
+  );
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(response.headers.get('access-control-allow-origin')).toBe(
+    env.CHECKOUT_ORIGIN,
+  );
+  const body = await response.json<{
+    data: { usdPrice: string; blockId: number; fetchedAt: number };
+  }>();
+  expect(validateReferencePrice(body)).toBe(true);
+  expect(body.data).toEqual({
+    usdPrice: '150.25',
+    blockId: 123,
+    fetchedAt: body.data.fetchedAt,
+  });
+  expect(Math.abs(Date.now() - body.data.fetchedAt)).toBeLessThan(1000);
+  expect(
+    (await env.DB.prepare('SELECT * FROM payments').all()).results,
+  ).toEqual(before.results);
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    expect.stringContaining('https://api.jup.ag/'),
+    expect.objectContaining({ headers: { 'x-api-key': 'fixture-price-key' } }),
+  );
+  expect(JSON.stringify(body)).not.toContain('fixture-price-key');
+});
+
+it('guards reference reads with origin, enablement, method and rate limits before provider work', async () => {
+  const url = 'http://localhost:8787/v1/price';
+  expect(
+    (
+      await worker.fetch(
+        new Request(url, { headers: { origin: 'https://evil.example' } }),
+        env,
+      )
+    ).status,
+  ).toBe(403);
+  expect(
+    (
+      await worker.fetch(new Request(url), {
+        ...env,
+        PAYMENTS_ENABLED: 'false',
+      })
+    ).status,
+  ).toBe(503);
+  expect(
+    (await worker.fetch(new Request(url, { method: 'POST' }), env)).ok,
+  ).toBe(false);
+  expect(fetchMock).not.toHaveBeenCalled();
+  for (let i = 0; i < 6; i++)
+    expect((await worker.fetch(new Request(url), env)).status).toBe(200);
+  expect((await worker.fetch(new Request(url), env)).status).toBe(429);
+  expect(fetchMock).toHaveBeenCalledTimes(6);
+});
+
+it('enforces the global reference budget across different client IPs', async () => {
+  const bucket = Math.floor(Date.now() / 60_000);
+  const { sha256 } = await import('../../src/security');
+  await env.DB.prepare(
+    'INSERT INTO rate_limits (key, count, expires_at) VALUES (?, ?, ?)',
+  )
+    .bind(await sha256(`price:global:${bucket}`), 60, (bucket + 2) * 60_000)
+    .run();
+  const response = await worker.fetch(
+    new Request('http://localhost:8787/v1/price', {
+      headers: { 'cf-connecting-ip': '192.0.2.123' },
+    }),
+    env,
+  );
+  expect(response.status).toBe(429);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it('sanitizes reference provider failures', async () => {
+  fetchMock.mockRejectedValueOnce(new Error('private provider details'));
+  const response = await worker.fetch(
+    new Request('http://localhost:8787/v1/price'),
+    env,
+  );
+  expect(response.status).toBe(503);
+  expect(await response.text()).toContain('PRICE_UNAVAILABLE');
+});
 
 it.each(['true', 'false'])(
   'checks dev log lookup with payments enabled=%s, authentication, rate limits and no payment or provider work',
