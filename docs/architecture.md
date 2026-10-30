@@ -33,6 +33,13 @@ automatic second transfer.**
 
 ## Amounts and times
 
+Before creation, checkout may display the public `/v1/price` SOL/USD reference.
+It uses the same validated provider reader as payment creation, but does not create
+or change payments. Its `fetchedAt` is gateway retrieval time, not a guarantee of
+the provider's market-update time. The endpoint is no-store, payments-enabled only,
+and bounded to six requests per IP and sixty globally per minute. Creation always
+fetches its own quote; reference reads cannot change an existing locked quote.
+
 - USD amounts use integer cents: `1000` means $10.00.
 - SOL amounts use integer lamports, stored as text:
   **1 SOL = 1,000,000,000 lamports**.

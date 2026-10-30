@@ -7,6 +7,7 @@ export type Operation =
   | 'configuration'
   | 'support_log_check'
   | 'rate_limit'
+  | 'price_read'
   | 'merchant_authentication'
   | 'payment_create'
   | 'payment_read'
