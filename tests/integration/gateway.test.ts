@@ -199,6 +199,7 @@ it('returns a bounded public reference without creating or changing payments', a
 });
 
 it('guards reference reads with origin, enablement, method and rate limits before provider work', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(1_800_000_010_000);
   const url = 'http://localhost:8787/v1/price';
   expect(
     (
@@ -227,6 +228,7 @@ it('guards reference reads with origin, enablement, method and rate limits befor
 });
 
 it('enforces the global reference budget across different client IPs', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(1_800_000_010_000);
   const bucket = Math.floor(Date.now() / 60_000);
   const { sha256 } = await import('../../src/security');
   await env.DB.prepare(
