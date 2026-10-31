@@ -774,7 +774,7 @@ describe('settlement', () => {
       await env.DB.prepare('DROP TRIGGER fail_outbox').run();
     }
   });
-  it('rejects mismatched attribution without permanently invalidating the payment', async () => {
+  it('keeps a rejected reference locked without retrying verification or accepting a replacement', async () => {
     const current = await create();
     transaction = transfer(current.payment);
     transaction.transaction.message.instructions[1].parsed = 'wrong-reference';
@@ -787,14 +787,163 @@ describe('settlement', () => {
     expect((rejected.body.data.attempts as { state: string }[])[0].state).toBe(
       'rejected',
     );
-    transaction = transfer(current.payment, otherSignature);
+    fetchMock.mockClear();
+    const repeated = await call(
+      `/v1/checkout/${current.id}/transactions`,
+      current.token,
+      { signature },
+    );
+    expect(repeated.status).toBe(200);
+    expect(repeated.body.data.attempts).toEqual(rejected.body.data.attempts);
+    const replacement = await call(
+      `/v1/checkout/${current.id}/transactions`,
+      current.token,
+      { signature: otherSignature },
+    );
+    expect(replacement.status).toBe(409);
+    expect(replacement.body.error.code).toBe('TRANSACTION_CONFLICT');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect((await getPayment(env.DB, current.id)).signature).toBeNull();
+    expect(
+      await env.DB.prepare(
+        'SELECT signature, state FROM attempts WHERE payment_id = ?',
+      )
+        .bind(current.id)
+        .all(),
+    ).toMatchObject({ results: [{ signature, state: 'rejected' }] });
+  });
+  it('records only one reference when different submissions arrive concurrently', async () => {
+    const current = await create();
+    const results = await Promise.all(
+      [signature, otherSignature].map((candidate) =>
+        call(`/v1/checkout/${current.id}/transactions`, current.token, {
+          signature: candidate,
+        }),
+      ),
+    );
+    expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+    expect(
+      results.find((result) => result.status === 409)?.body.error.code,
+    ).toBe('TRANSACTION_CONFLICT');
+    const attempts = await env.DB.prepare(
+      'SELECT signature, state FROM attempts WHERE payment_id = ?',
+    )
+      .bind(current.id)
+      .all<{ signature: string; state: string }>();
+    expect(attempts.results).toHaveLength(1);
+    const winner = attempts.results[0].signature;
+    expect([signature, otherSignature]).toContain(winner);
+    expect(attempts.results[0].state).toBe('pending');
+    const repeated = await call(
+      `/v1/checkout/${current.id}/transactions`,
+      current.token,
+      { signature: winner },
+    );
+    expect(repeated.status).toBe(200);
+    expect(repeated.body.data.attempts).toHaveLength(1);
+    transaction = transfer(current.payment, winner);
+    await env.DB.prepare('UPDATE attempts SET next_attempt_at = 0').run();
+    await retryVerification(env.DB, config(env));
+    expect((await getPayment(env.DB, current.id)).signature).toBe(winner);
+    expect(
+      await env.DB.prepare('SELECT COUNT(*) AS n FROM events').first(),
+    ).toEqual({ n: 1 });
+    const loser = winner === signature ? otherSignature : signature;
     expect(
       (
         await call(`/v1/checkout/${current.id}/transactions`, current.token, {
-          signature: otherSignature,
+          signature: loser,
         })
-      ).body.data.status,
-    ).toBe('settled');
+      ).status,
+    ).toBe(409);
+  });
+  it('preserves the first reference across RPC failure and recovers only that reference', async () => {
+    const current = await create();
+    fetchMock.mockRejectedValue(new Error('RPC unavailable'));
+    const first = await call(
+      `/v1/checkout/${current.id}/transactions`,
+      current.token,
+      { signature },
+    );
+    expect(first.status).toBe(503);
+    const replacement = await call(
+      `/v1/checkout/${current.id}/transactions`,
+      current.token,
+      { signature: otherSignature },
+    );
+    expect(replacement.status).toBe(409);
+    expect(replacement.body.error.code).toBe('TRANSACTION_CONFLICT');
+    transaction = transfer(current.payment);
+    fetchMock.mockImplementation((_url, options) => {
+      if (typeof options?.body !== 'string')
+        throw new Error('Unexpected upstream body.');
+      const body = JSON.parse(options.body) as { method: string };
+      return Promise.resolve(
+        Response.json({
+          result:
+            body.method === 'getGenesisHash' ? DEVNET_GENESIS : transaction,
+        }),
+      );
+    });
+    const recovered = await call(
+      `/v1/checkout/${current.id}/transactions`,
+      current.token,
+      { signature },
+    );
+    expect(recovered.status).toBe(200);
+    expect(recovered.body.data.status).toBe('settled');
+    expect(recovered.body.data.signature).toBe(signature);
+    expect(recovered.body.data.attempts).toEqual([
+      { signature, state: 'verified', reason: null },
+    ]);
+  });
+  it('preserves legacy references and their recovery without allowing another reference', async () => {
+    const current = await create();
+    await env.DB.batch(
+      [signature, otherSignature].map((candidate) =>
+        env.DB.prepare(
+          'INSERT INTO attempts (payment_id, signature, next_attempt_at, created_at) VALUES (?, ?, 0, 0)',
+        ).bind(current.id, candidate),
+      ),
+    );
+    const thirdSignature = '1'.repeat(63) + '3';
+    const blocked = await call(
+      `/v1/checkout/${current.id}/transactions`,
+      current.token,
+      { signature: thirdSignature },
+    );
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.error.code).toBe('TRANSACTION_CONFLICT');
+    transaction = transfer(current.payment, otherSignature);
+    const recovered = await call(
+      `/v1/checkout/${current.id}/transactions`,
+      current.token,
+      { signature: otherSignature },
+    );
+    expect(recovered.status).toBe(200);
+    expect(recovered.body.data.signature).toBe(otherSignature);
+    expect(recovered.body.data.attempts).toEqual([
+      { signature, state: 'pending', reason: null },
+      { signature: otherSignature, state: 'verified', reason: null },
+    ]);
+  });
+  it('does not lock a checkout for a malformed signature request', async () => {
+    const current = await create();
+    const invalid = await call(
+      `/v1/checkout/${current.id}/transactions`,
+      current.token,
+      { signature: 'invalid' },
+    );
+    expect(invalid.status).toBe(400);
+    expect(invalid.body.error.code).toBe('INVALID_SIGNATURE');
+    transaction = transfer(current.payment);
+    const valid = await call(
+      `/v1/checkout/${current.id}/transactions`,
+      current.token,
+      { signature },
+    );
+    expect(valid.status).toBe(200);
+    expect(valid.body.data.status).toBe('settled');
   });
   it('accepts pre-expiry execution finalized later, rejects late/early/wrong/failed transfers', async () => {
     const current = await create();

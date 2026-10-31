@@ -99,7 +99,7 @@ export default {
       if (path === '/health' && request.method === 'GET') {
         return response(
           {
-            data: { service: 'crypto_gateway_backend', version: '0.4.0' },
+            data: { service: 'crypto_gateway_backend', version: '0.4.1' },
             meta: { requestId },
           },
           requestId,

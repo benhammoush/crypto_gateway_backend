@@ -239,7 +239,7 @@ export async function settle(
     );
 }
 
-/** Candidate signatures are durable so verification survives browser disconnects.
+/** Lock the first candidate durably; same-signature retries survive browser disconnects.
  * @param db - Database retaining verification attempts.
  * @param config - Validated gateway settings for finalized verification.
  * @param payment - Authenticated payment receiving the candidate.
@@ -269,7 +269,7 @@ export async function submit(
   await db
     .prepare(
       `INSERT INTO attempts (payment_id, signature, next_attempt_at, created_at)
-    SELECT ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM attempts WHERE payment_id = ?) < 5
+    SELECT ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM attempts WHERE payment_id = ?)
     ON CONFLICT(payment_id, signature) DO NOTHING`,
     )
     .bind(payment.id, signature, Date.now(), Date.now(), payment.id)
@@ -282,9 +282,9 @@ export async function submit(
     .first<{ state: string }>();
   if (!attempt)
     throw new PublicError(
-      'ATTEMPT_LIMIT',
-      'Too many transaction candidates. Contact the merchant.',
-      429,
+      'TRANSACTION_CONFLICT',
+      'This checkout already has a transaction reference. Do not pay again; contact the merchant.',
+      409,
     );
   if (attempt.state === 'pending')
     await verifyCandidate(db, config, payment, signature);
