@@ -976,6 +976,114 @@ describe('settlement', () => {
       ).body.data.status,
     ).toBe('settled');
   });
+  it.each([-1, 0, 1])(
+    'enforces the submission review deadline at offset %i milliseconds',
+    async (offset) => {
+      const current = await create();
+      expect(current.payment.expires_at - current.payment.created_at).toBe(
+        15 * 60_000,
+      );
+      transaction = transfer(current.payment);
+      const deadline = current.payment.expires_at + 24 * 60 * 60_000;
+      vi.spyOn(Date, 'now').mockReturnValue(deadline + offset);
+      fetchMock.mockClear();
+
+      const result = await call(
+        `/v1/checkout/${current.id}/transactions`,
+        current.token,
+        { signature },
+      );
+      const attempts = await env.DB.prepare(
+        'SELECT signature, state, reason FROM attempts WHERE payment_id = ?',
+      )
+        .bind(current.id)
+        .all();
+      if (offset <= 0) {
+        expect(result.status).toBe(200);
+        expect(result.body.data.status).toBe('settled');
+        expect(result.body.data.signature).toBe(signature);
+        expect(attempts.results).toEqual([
+          { signature, state: 'verified', reason: null },
+        ]);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+      } else {
+        expect(result.status).toBe(422);
+        expect(result.body.error.code).toBe('MANUAL_REVIEW');
+        expect(attempts.results).toEqual([]);
+        expect((await getPayment(env.DB, current.id)).signature).toBeNull();
+        expect(fetchMock).not.toHaveBeenCalled();
+      }
+      expect(
+        await env.DB.prepare('SELECT COUNT(*) AS n FROM events').first(),
+      ).toEqual({ n: offset <= 0 ? 1 : 0 });
+    },
+  );
+  it.each([-1, 0, 1])(
+    'enforces the scheduled verification deadline at offset %i milliseconds',
+    async (offset) => {
+      const current = await create();
+      const pending = await call(
+        `/v1/checkout/${current.id}/transactions`,
+        current.token,
+        { signature },
+      );
+      expect(pending.status).toBe(200);
+      expect(pending.body.data.status).toBe('verifying');
+      const deadline = current.payment.expires_at + 24 * 60 * 60_000;
+      vi.spyOn(Date, 'now').mockReturnValue(deadline + offset);
+      transaction = transfer(current.payment);
+      fetchMock.mockClear();
+
+      if (offset > 0) {
+        const repeated = await call(
+          `/v1/checkout/${current.id}/transactions`,
+          current.token,
+          { signature },
+        );
+        expect(repeated.status).toBe(422);
+        expect(repeated.body.error.code).toBe('MANUAL_REVIEW');
+        const unchanged = await call(
+          `/v1/checkout/${current.id}`,
+          current.token,
+        );
+        expect(unchanged.body.data.status).toBe('verifying');
+        expect(unchanged.body.data.attempts).toEqual([
+          { signature, state: 'pending', reason: null },
+        ]);
+        expect(fetchMock).not.toHaveBeenCalled();
+      }
+
+      await retryVerification(env.DB, config(env));
+      const result = await call(`/v1/checkout/${current.id}`, current.token);
+      expect(result.status).toBe(200);
+      expect(result.body.data.status).toBe(offset <= 0 ? 'settled' : 'expired');
+      expect(result.body.data.signature).toBe(offset <= 0 ? signature : null);
+      expect(result.body.data.attempts).toEqual([
+        {
+          signature,
+          state: offset <= 0 ? 'verified' : 'rejected',
+          reason: offset <= 0 ? null : 'MANUAL_REVIEW',
+        },
+      ]);
+      expect((await getPayment(env.DB, current.id)).signature).toBe(
+        offset <= 0 ? signature : null,
+      );
+      expect(
+        await env.DB.prepare('SELECT COUNT(*) AS n FROM events').first(),
+      ).toEqual({ n: offset <= 0 ? 1 : 0 });
+      expect(fetchMock).toHaveBeenCalledTimes(offset <= 0 ? 2 : 0);
+
+      fetchMock.mockClear();
+      await retryVerification(env.DB, config(env));
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(
+        (await call(`/v1/checkout/${current.id}`, current.token)).body.data,
+      ).toEqual(result.body.data);
+      expect(
+        await env.DB.prepare('SELECT COUNT(*) AS n FROM events').first(),
+      ).toEqual({ n: offset <= 0 ? 1 : 0 });
+    },
+  );
   it('validates decoded signature lengths', () => {
     expect(base58Length(signature)).toBe(64);
     expect(base58Length('not_a_signature')).toBe(-1);
