@@ -94,8 +94,21 @@ Status is derived from the payment and its attempts:
 - `expired`: the quote expired without settlement or a pending candidate.
 
 A transaction must execute within the original quote window. Verification may finish
-later; automatic review is available for up to **24 hours after expiry**. Each payment
-accepts at most **five distinct candidate signatures**.
+later; automatic review is available for up to **24 hours after expiry**. The first
+recorded transaction signature locks the checkout, even if verification rejects it.
+Retries must use that same signature; a different signature receives a conflict.
+The lock is recorded before verification, including when the RPC is unavailable.
+Malformed submission requests do not record a signature. A rejected or uncertain
+transfer requires investigation, not another payment.
+
+Existing attempt history is preserved. Older checkouts with multiple recorded
+signatures can continue verifying those references, but cannot add another. Review
+such records before deployment; never delete attempts or rewrite payment history
+to make them fit the new rule.
+
+This rule is enforced by the submission statement, not a new schema constraint.
+All writers must use the new rule; an older deployment or rollback can allow
+additional references again.
 
 Expiry, rejection or a network error does not prove that no funds moved.
 

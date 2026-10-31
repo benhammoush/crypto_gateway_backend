@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "crypto_gateway",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "description": "Non-custodial USD-to-SOL Devnet payments. Merchant endpoints require server-side credentials; checkout endpoints require payment-scoped capabilities."
   },
   "paths": {
@@ -115,6 +115,7 @@
     "/v1/checkout/{id}/transactions": {
       "post": {
         "operationId": "submitTransaction",
+        "description": "The first recorded signature locks this checkout before verification. Retry the same signature after transport or provider failures; never send another transfer. A different signature returns 409 TRANSACTION_CONFLICT, including after rejection; after settlement it returns 409 ALREADY_SETTLED. Invalid request syntax does not record a signature. Automatic verification ends 24 hours after quote expiry. Existing recorded signatures remain available for verification on legacy checkouts; no additional signature can be recorded.",
         "security": [{ "checkoutBearer": [] }],
         "parameters": [{ "$ref": "#/components/parameters/PaymentId" }],
         "requestBody": {
