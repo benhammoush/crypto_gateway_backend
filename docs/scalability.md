@@ -16,8 +16,8 @@ means a larger user base for the same load.
 | Shared demo                                |                 1,000 |                     10 |                         20 |                                30 |
 | Growth sensitivity, not supported capacity |                10,000 |                     60 |                        100 |                               200 |
 
-Assume four reference-price reads, 25 status reads, two wallet metadata requests
-and one submission per checkout: **33 application requests + up to 28 preflights**.
+Assume one creation, four reference-price reads, 25 status reads, two wallet metadata
+requests and one submission per checkout: **33 application requests + up to 28 preflights**.
 Use a 30-day month, with retries, abuse and other account consumers additional.
 
 ## 1. External APIs: costs and scaling
@@ -63,6 +63,8 @@ can add charges (Business/Professional default on); agree a spend cap first.
 
 Each checkout uses five Jupiter reads and five RPC calls before retries.
 Monthly volume for each is `30 × 5 × daily checkouts`.
+Jupiter peak demand is `2 × visible carts + peak creations/min` (30-second cart
+refreshes); RPC peak demand is `5 × peak creations/min`, before retries.
 
 | Checkouts/day | Monthly credits per provider* | Jupiter peak/min | RPC peak/min | Candidate external subscriptions/month                    |
 | ------------- | ----------------------------: | ---------------: | -----------: | --------------------------------------------------------- |
