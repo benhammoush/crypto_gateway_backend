@@ -121,6 +121,9 @@ failure does not undo settlement.
 
 ## Contracts and safety
 
+See the [backend scalability plan](scalability.md) for workload assumptions,
+capacity constraints, costs and scaling triggers.
+
 Merchant credentials and keyed provider URLs stay server-side. Checkout uses
 payment-scoped access; merchant reads require ownership. Webhooks require approved
 public HTTPS destinations.
