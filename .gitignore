@@ -6,3 +6,4 @@ dist/
 !.dev.vars.example
 .env*
 coverage/
+/DEV.md
