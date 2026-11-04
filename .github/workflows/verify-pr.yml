@@ -9,9 +9,9 @@ permissions:
 jobs:
   verify:
     name: PR checks
-    uses: benhammoush/ci-cd-workflows/.github/workflows/verify-worker.yml@d1143395dc6a078ef284978c1daf039ed06ff7d1
+    uses: benhammoush/ci-cd-workflows/.github/workflows/verify-worker.yml@805b0237cfdb15d356e0b6700321d038620f022e
     with:
-      automation_sha: d1143395dc6a078ef284978c1daf039ed06ff7d1
+      automation_sha: 805b0237cfdb15d356e0b6700321d038620f022e
       source_sha: ${{ github.sha }}
       environment: dev
       node_version: '24'

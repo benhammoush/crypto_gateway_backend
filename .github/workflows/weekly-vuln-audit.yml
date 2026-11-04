@@ -13,6 +13,6 @@ concurrency:
 jobs:
   audit:
     name: Audit vulnerabilities
-    uses: benhammoush/ci-cd-workflows/.github/workflows/weekly-vuln-audit.yml@d1143395dc6a078ef284978c1daf039ed06ff7d1
+    uses: benhammoush/ci-cd-workflows/.github/workflows/weekly-vuln-audit.yml@805b0237cfdb15d356e0b6700321d038620f022e
     with:
       node_version: '24'
