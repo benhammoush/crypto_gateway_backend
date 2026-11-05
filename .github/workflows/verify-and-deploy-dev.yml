@@ -16,7 +16,7 @@ permissions:
 jobs:
   verify:
     name: Dev checks
-    uses: benhammoush/ci-cd-workflows/.github/workflows/verify-worker.yml@805b0237cfdb15d356e0b6700321d038620f022e
+    uses: benhammoush/ci-cd-workflows/.github/workflows/verify-worker.yml@c1ad9103aefc48c7694499aa1577e3266d7c6af8
     with:
       automation_sha: 805b0237cfdb15d356e0b6700321d038620f022e
       source_sha: ${{ inputs.sha || github.sha }}
